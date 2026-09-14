@@ -9,7 +9,9 @@ import { ScoreState } from '../gameplay/ScoreState';
 import { ProgressionState } from '../gameplay/ProgressionState';
 import { PortalController } from '../gameplay/PortalController';
 import { LauncherGateController } from '../gameplay/LauncherGateController';
+import { LaunchChargeState } from '../gameplay/LaunchChargeState';
 import { TableRenderer } from '../rendering/TableRenderer';
+import { LaunchGauge } from '../rendering/LaunchGauge';
 import { createRailSegments } from '../physics/railGeometry';
 import { getTable } from '../tables';
 import type { TableDefinition } from '../tables/types';
@@ -26,7 +28,6 @@ export class GameScene extends Phaser.Scene {
   private rightFlipper?: FlipperController;
   private leftKeys: Phaser.Input.Keyboard.Key[] = [];
   private rightKeys: Phaser.Input.Keyboard.Key[] = [];
-  private launchKey?: Phaser.Input.Keyboard.Key;
   private leftTapUntil = 0;
   private rightTapUntil = 0;
   private table: TableDefinition = getTable(0);
@@ -40,6 +41,8 @@ export class GameScene extends Phaser.Scene {
   private progressFill?: Phaser.GameObjects.Rectangle;
   private portal?: PortalController;
   private launcherGate?: LauncherGateController;
+  private readonly launchCharge = new LaunchChargeState(PHYSICS.launcher.chargeCycleMs);
+  private launchGauge?: LaunchGauge;
   private transitioning = false;
 
   public constructor() {
@@ -69,6 +72,7 @@ export class GameScene extends Phaser.Scene {
     this.prepareBall(renderer.createBallTexture());
     this.createControls();
     this.createHud();
+    this.launchGauge = new LaunchGauge(this);
 
     if (this.table.id > 0) this.showTableArrival();
 
@@ -81,6 +85,8 @@ export class GameScene extends Phaser.Scene {
 
   public update(time: number, delta: number): void {
     this.ball?.update(delta);
+    this.launchCharge.update(delta);
+    this.launchGauge?.update(this.launchCharge.value);
     if (this.ball?.hasExitedLauncher) this.launcherGate?.closeAfterExit(this.ball.image.x);
     this.leftFlipper?.update(this.leftKeys.some((key) => key.isDown) || time < this.leftTapUntil);
     this.rightFlipper?.update(this.rightKeys.some((key) => key.isDown) || time < this.rightTapUntil);
@@ -107,11 +113,11 @@ export class GameScene extends Phaser.Scene {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', letterSpacing: 2,
     }).setOrigin(1, 0).setDepth(4);
 
-    this.stateText = this.add.text(585, 865, 'ESPACE\nLANCER', {
+    this.stateText = this.add.text(585, 865, 'MAINTENIR\nESPACE', {
       align: 'center', color: '#35e7ff', fontFamily: 'monospace', fontSize: '13px', letterSpacing: 2,
     }).setOrigin(0.5).setDepth(4);
 
-    this.add.text(360, 1020, '← / Q  GAUCHE     → / D  DROIT     ESPACE  LANCER', {
+    this.add.text(360, 1020, '← / Q  GAUCHE     → / D  DROIT     ESPACE  CHARGER', {
       color: '#79aebb', fontFamily: 'monospace', fontSize: '12px', letterSpacing: 1,
     }).setOrigin(0.5).setDepth(4);
   }
@@ -129,11 +135,18 @@ export class GameScene extends Phaser.Scene {
     this.rightKeys.forEach((key) => key.on('down', () => {
       this.rightTapUntil = this.time.now + PHYSICS.flipper.tapHoldMs;
     }));
-    this.launchKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    this.launchKey.on('down', () => {
-      if (!this.run.launch()) return;
-      this.ball?.launch();
+    const launchKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    launchKey.on('down', () => {
+      if (this.run.phase === 'ready') this.launchCharge.start();
+    });
+    launchKey.on('up', () => {
+      const power = this.launchCharge.release();
+      if (power === undefined || !this.run.launch()) return;
+      this.ball?.launch(power);
       this.stateText?.setVisible(false);
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      [...this.leftKeys, ...this.rightKeys, launchKey].forEach((key) => key.removeAllListeners());
     });
   }
 
@@ -221,6 +234,8 @@ export class GameScene extends Phaser.Scene {
 
   private prepareBall(texture: string): void {
     this.launcherGate?.openForLaunch();
+    this.launchCharge.reset();
+    this.launchGauge?.update(0);
     this.ball = new BallController(this, this.table.spawn, texture);
     this.stateText?.setVisible(true);
   }

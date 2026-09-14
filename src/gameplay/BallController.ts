@@ -24,10 +24,11 @@ export class BallController {
     ).setDepth(3));
   }
 
-  public launch(): void {
+  public launch(power: number): void {
     this.launched = true;
     this.image.setStatic(false);
-    this.image.setVelocity(PHYSICS.launcher.velocity.x, PHYSICS.launcher.velocity.y);
+    const velocityY = Phaser.Math.Linear(PHYSICS.launcher.minVelocityY, PHYSICS.launcher.maxVelocityY, power);
+    this.image.setVelocity(0, velocityY);
   }
 
   public update(deltaMs: number): void {
