@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { STARTING_BALLS } from '../config/game';
 import { PHYSICS } from '../config/physics';
 import { BallController } from '../gameplay/BallController';
+import { BumperController } from '../gameplay/BumperController';
 import { FlipperController } from '../gameplay/FlipperController';
 import { RunState } from '../gameplay/RunState';
+import { ScoreState } from '../gameplay/ScoreState';
 import { TableRenderer } from '../rendering/TableRenderer';
 import { TABLE_ZERO } from '../tables/table0';
 
@@ -15,7 +17,10 @@ export class GameScene extends Phaser.Scene {
   private rightKeys: Phaser.Input.Keyboard.Key[] = [];
   private launchKey?: Phaser.Input.Keyboard.Key;
   private readonly run = new RunState(STARTING_BALLS);
+  private readonly score = new ScoreState();
+  private readonly bumpers = new Map<string, BumperController>();
   private ballsText?: Phaser.GameObjects.Text;
+  private scoreText?: Phaser.GameObjects.Text;
   private stateText?: Phaser.GameObjects.Text;
 
   public constructor() {
@@ -27,6 +32,7 @@ export class GameScene extends Phaser.Scene {
     const renderer = new TableRenderer(this, TABLE_ZERO);
     renderer.draw();
     this.createPhysics();
+    this.createBumpers();
     const flipperTexture = renderer.createFlipperTexture();
     this.leftFlipper = new FlipperController(this, 'left', flipperTexture);
     this.rightFlipper = new FlipperController(this, 'right', flipperTexture);
@@ -45,13 +51,13 @@ export class GameScene extends Phaser.Scene {
     this.leftFlipper?.update(this.leftKeys.some((key) => key.isDown));
     this.rightFlipper?.update(this.rightKeys.some((key) => key.isDown));
 
-    if (this.launchKey && Phaser.Input.Keyboard.JustDown(this.launchKey) && this.run.launch()) {
-      this.ball?.launch();
-      this.stateText?.setVisible(false);
-    }
   }
 
   private createHud(): void {
+    this.scoreText = this.add.text(108, 124, 'SCORE  0', {
+      color: '#35e7ff', fontFamily: 'monospace', fontSize: '18px', letterSpacing: 2,
+    }).setDepth(4);
+
     this.add.text(108, 92, 'PLATEAU 0', {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '18px', letterSpacing: 3,
     }).setDepth(4);
@@ -72,9 +78,16 @@ export class GameScene extends Phaser.Scene {
   private createControls(): void {
     const keyboard = this.input.keyboard;
     if (!keyboard) return;
+    this.game.canvas.tabIndex = 0;
+    this.game.canvas.focus();
     this.leftKeys = [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT), keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q)];
     this.rightKeys = [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT), keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)];
     this.launchKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.launchKey.on('down', () => {
+      if (!this.run.launch()) return;
+      this.ball?.launch();
+      this.stateText?.setVisible(false);
+    });
   }
 
   private createPhysics(): void {
@@ -89,8 +102,16 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private createBumpers(): void {
+    for (const definition of TABLE_ZERO.bumpers) {
+      const bumper = new BumperController(this, definition);
+      this.bumpers.set(bumper.label, bumper);
+    }
+  }
+
   private handleCollision(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
     if (this.run.phase !== 'playing') return;
+    this.handleBumperHits(event);
     const drainHit = event.pairs.some(({ bodyA, bodyB }) => bodyA.label === 'drain' || bodyB.label === 'drain');
     if (!drainHit) return;
 
@@ -105,6 +126,22 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.time.delayedCall(650, () => this.prepareBall('ball'));
+  }
+
+  private handleBumperHits(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
+    if (!this.ball) return;
+    const ballBody = this.ball.image.body;
+    if (!ballBody) return;
+
+    for (const { bodyA, bodyB } of event.pairs) {
+      const other = bodyA === ballBody ? bodyB : bodyB === ballBody ? bodyA : undefined;
+      if (!other) continue;
+      const bumper = this.bumpers.get(other.label);
+      if (!bumper) continue;
+
+      bumper.hit(this.ball.image);
+      this.scoreText?.setText(`SCORE  ${this.score.add(bumper.definition.score).toLocaleString('fr-FR')}`);
+    }
   }
 
   private prepareBall(texture: string): void {

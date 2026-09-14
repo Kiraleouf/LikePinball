@@ -5,6 +5,14 @@ export interface TableDefinition {
   readonly spawn: Point;
   readonly walls: readonly WallDefinition[];
   readonly drain: RectangleDefinition;
+  readonly bumpers: readonly BumperDefinition[];
+}
+
+export interface BumperDefinition extends Point {
+  readonly id: string;
+  readonly radius: number;
+  readonly score: number;
+  readonly color: number;
 }
 
 export interface Point {

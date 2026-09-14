@@ -30,6 +30,12 @@ export const PHYSICS = {
     },
   },
   launcher: {
-    velocity: { x: -2.6, y: -25 },
+    velocity: { x: 0, y: -25 },
+    exitHeight: 300,
+    exitVelocityX: -8,
+  },
+  bumper: {
+    restitution: 1.35,
+    kickSpeed: 18,
   },
 } as const;

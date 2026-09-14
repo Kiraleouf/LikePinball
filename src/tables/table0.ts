@@ -15,4 +15,9 @@ export const TABLE_ZERO: TableDefinition = {
     { x: 525, y: 980, width: 235, height: 28, angle: -0.18 },
   ],
   drain: { x: 360, y: 1060, width: 260, height: 40 },
+  bumpers: [
+    { id: 'left', x: 245, y: 390, radius: 42, score: 500, color: 0xff3bc8 },
+    { id: 'right', x: 455, y: 390, radius: 42, score: 500, color: 0xff3bc8 },
+    { id: 'center', x: 350, y: 550, radius: 38, score: 750, color: 0xffbd35 },
+  ],
 };

@@ -4,6 +4,7 @@ import type { Point } from '../tables/types';
 
 export class BallController {
   public readonly image: Phaser.Physics.Matter.Image;
+  private leftLauncher = false;
 
   public constructor(scene: Phaser.Scene, spawn: Point, texture: string) {
     this.image = scene.matter.add.image(spawn.x, spawn.y, texture);
@@ -23,6 +24,11 @@ export class BallController {
   public limitSpeed(): void {
     const body = this.image.body;
     if (!body) return;
+
+    if (!this.leftLauncher && this.image.y < PHYSICS.launcher.exitHeight) {
+      this.leftLauncher = true;
+      this.image.setVelocity(PHYSICS.launcher.exitVelocityX, body.velocity.y);
+    }
 
     const speed = Math.hypot(body.velocity.x, body.velocity.y);
     if (speed <= PHYSICS.ball.maxSpeed) return;
