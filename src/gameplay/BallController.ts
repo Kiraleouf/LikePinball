@@ -11,8 +11,13 @@ export class BallController {
     this.image.setBounce(PHYSICS.ball.restitution);
     this.image.setFriction(PHYSICS.ball.friction, 0, PHYSICS.ball.frictionAir);
     this.image.setDensity(PHYSICS.ball.density);
-    this.image.setVelocity(PHYSICS.ball.initialVelocity.x, PHYSICS.ball.initialVelocity.y);
+    this.image.setStatic(true);
     this.image.setData('kind', 'ball');
+  }
+
+  public launch(): void {
+    this.image.setStatic(false);
+    this.image.setVelocity(PHYSICS.launcher.velocity.x, PHYSICS.launcher.velocity.y);
   }
 
   public limitSpeed(): void {
@@ -24,5 +29,9 @@ export class BallController {
 
     const scale = PHYSICS.ball.maxSpeed / speed;
     this.image.setVelocity(body.velocity.x * scale, body.velocity.y * scale);
+  }
+
+  public destroy(): void {
+    this.image.destroy();
   }
 }

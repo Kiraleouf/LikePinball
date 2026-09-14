@@ -5,11 +5,12 @@ export const TABLE_ZERO: TableDefinition = {
   id: 0,
   name: 'Plateau 0',
   backgroundColor: BACKGROUND_COLOR,
-  spawn: { x: 360, y: 180 },
+  spawn: { x: 585, y: 940 },
   walls: [
     { x: 100, y: 540, width: 28, height: 920 },
     { x: 620, y: 540, width: 28, height: 920 },
     { x: 360, y: 72, width: 548, height: 28 },
+    { x: 550, y: 670, width: 18, height: 690 },
     { x: 195, y: 980, width: 235, height: 28, angle: 0.18 },
     { x: 525, y: 980, width: 235, height: 28, angle: -0.18 },
   ],

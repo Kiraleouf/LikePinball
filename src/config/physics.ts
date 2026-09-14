@@ -29,4 +29,7 @@ export const PHYSICS = {
       activeAngle: 0.5,
     },
   },
+  launcher: {
+    velocity: { x: -2.6, y: -25 },
+  },
 } as const;

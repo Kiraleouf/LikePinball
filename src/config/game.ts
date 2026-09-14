@@ -8,3 +8,5 @@ export const COLORS = {
   mutedCyan: 0x123a44,
   white: 0xe8fbff,
 } as const;
+
+export const STARTING_BALLS = 3;
