@@ -1,12 +1,12 @@
 export const PHYSICS = {
-  gravity: 0.62,
+  gravity: 0.76,
   ball: {
     radius: 16,
-    restitution: 0.62,
+    restitution: 0.7,
     friction: 0.002,
-    frictionAir: 0.006,
+    frictionAir: 0.0045,
     density: 0.003,
-    maxSpeed: 22,
+    maxSpeed: 28,
   },
   wall: {
     restitution: 0.45,
@@ -17,8 +17,8 @@ export const PHYSICS = {
     height: 24,
     angularSpeed: 0.3,
     returnSpeed: 0.2,
-    kickVelocityY: -23,
-    kickVelocityX: 5.5,
+    kickVelocityY: -26,
+    kickVelocityX: 6.5,
     tapHoldMs: 180,
     left: {
       pivot: { x: 220, y: 925 },
@@ -32,17 +32,17 @@ export const PHYSICS = {
     },
   },
   launcher: {
-    velocity: { x: 0, y: -25 },
+    velocity: { x: 0, y: -29 },
     exitHeight: 300,
-    exitVelocityX: -8,
+    exitVelocityX: -9,
   },
   bumper: {
     restitution: 1.15,
-    kickSpeed: 16,
+    kickSpeed: 20,
   },
   antiStall: {
     speedThreshold: 0.45,
-    delayMs: 3_000,
+    delayMs: 1_800,
     nudgeVelocity: { x: 1.2, y: -5.5 },
     maxY: 880,
   },

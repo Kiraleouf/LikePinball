@@ -16,9 +16,9 @@ export const TABLE_ZERO: TableDefinition = {
   ],
   drain: { x: 360, y: 1060, width: 260, height: 40 },
   bumpers: [
-    { id: 'left', x: 245, y: 390, radius: 42, score: 500, color: 0xff3bc8 },
-    { id: 'right', x: 455, y: 390, radius: 42, score: 500, color: 0xff3bc8 },
-    { id: 'center', x: 350, y: 550, radius: 38, score: 750, color: 0xffbd35 },
+    { id: 'left', x: 245, y: 390, radius: 42, score: 2_500, color: 0xff3bc8 },
+    { id: 'right', x: 455, y: 390, radius: 42, score: 2_500, color: 0xff3bc8 },
+    { id: 'center', x: 350, y: 550, radius: 38, score: 2_500, color: 0xffbd35 },
   ],
   rails: [
     { id: 'upper-left', thickness: 12, color: 0x35e7ff, points: [
@@ -35,5 +35,5 @@ export const TABLE_ZERO: TableDefinition = {
       { x: 515, y: 780 }, { x: 455, y: 850 },], },
   ],
   targetScore: 10_000,
-  portal: { x: 360, y: 165, radius: 52 },
+  portal: { x: 360, y: 255, radius: 68 },
 };

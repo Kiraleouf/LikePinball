@@ -11,4 +11,12 @@ describe('définitions de plateaux', () => {
     expect(table1.rails).not.toEqual(table0.rails);
     expect(table1.bumpers).not.toEqual(table0.bumpers);
   });
+
+  it('rend l’objectif du plateau 0 atteignable en quatre impacts', () => {
+    const table0 = getTable(0);
+    const lowestBumperScore = Math.min(...table0.bumpers.map(({ score }) => score));
+
+    expect(table0.targetScore).toBe(10_000);
+    expect(lowestBumperScore * 4).toBeGreaterThanOrEqual(table0.targetScore);
+  });
 });

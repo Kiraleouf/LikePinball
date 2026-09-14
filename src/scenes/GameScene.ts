@@ -59,7 +59,7 @@ export class GameScene extends Phaser.Scene {
     renderer.draw();
     this.createPhysics();
     this.createBumpers();
-    this.portal = new PortalController(this, this.table.portal);
+    this.portal = this.table.id === 0 ? new PortalController(this, this.table.portal) : undefined;
     const flipperTexture = renderer.createFlipperTexture();
     this.leftFlipper = new FlipperController(this, 'left', flipperTexture);
     this.rightFlipper = new FlipperController(this, 'right', flipperTexture);
@@ -69,9 +69,10 @@ export class GameScene extends Phaser.Scene {
 
     if (this.table.id > 0) this.showTableArrival();
 
-    this.matter.world.on('collisionstart', this.handleCollision, this);
+    const matterWorld = this.matter.world;
+    matterWorld.on('collisionstart', this.handleCollision, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.matter.world.off('collisionstart', this.handleCollision, this);
+      matterWorld.off('collisionstart', this.handleCollision, this);
     });
   }
 
@@ -200,7 +201,7 @@ export class GameScene extends Phaser.Scene {
       const value = this.score.add(bumper.definition.score);
       this.scoreText?.setText(`SCORE  ${value.toLocaleString('fr-FR')}`);
       this.progressFill?.setScale(this.progression.ratio(value), 1);
-      if (this.progression.update(value)) this.portal?.activate();
+      if (this.table.id === 0 && this.progression.update(value)) this.portal?.activate();
     }
   }
 
