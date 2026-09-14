@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import './style.css';
 import { BACKGROUND_COLOR, GAME_HEIGHT, GAME_WIDTH } from './config/game';
+import { PHYSICS } from './config/physics';
 import { GameScene } from './scenes/GameScene';
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -12,7 +13,7 @@ const config: Phaser.Types.Core.GameConfig = {
   physics: {
     default: 'matter',
     matter: {
-      gravity: { x: 0, y: 1 },
+      gravity: { x: 0, y: PHYSICS.gravity },
     },
   },
   scale: {
