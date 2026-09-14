@@ -12,4 +12,8 @@ export class ProgressionState {
   public ratio(score: number): number {
     return Math.min(1, Math.max(0, score / this.targetScore));
   }
+
+  public canEnterPortal(colliderLabel: string): boolean {
+    return this.portalUnlocked && colliderLabel === 'portal';
+  }
 }

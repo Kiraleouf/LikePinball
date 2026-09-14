@@ -18,4 +18,12 @@ describe('ProgressionState', () => {
     expect(progression.update(11_000)).toBe(false);
     expect(progression.ratio(12_000)).toBe(1);
   });
+
+  it('autorise la transition uniquement par le portail actif', () => {
+    const progression = new ProgressionState(10_000);
+    expect(progression.canEnterPortal('portal')).toBe(false);
+    progression.update(10_000);
+    expect(progression.canEnterPortal('wall')).toBe(false);
+    expect(progression.canEnterPortal('portal')).toBe(true);
+  });
 });
