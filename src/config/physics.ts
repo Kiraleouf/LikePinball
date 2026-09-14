@@ -13,4 +13,20 @@ export const PHYSICS = {
     restitution: 0.45,
     friction: 0.02,
   },
+  flipper: {
+    width: 132,
+    height: 24,
+    angularSpeed: 0.34,
+    returnSpeed: 0.24,
+    left: {
+      pivot: { x: 245, y: 925 },
+      restAngle: 0.32,
+      activeAngle: -0.5,
+    },
+    right: {
+      pivot: { x: 475, y: 925 },
+      restAngle: -0.32,
+      activeAngle: 0.5,
+    },
+  },
 } as const;

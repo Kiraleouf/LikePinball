@@ -46,4 +46,19 @@ export class TableRenderer {
     graphics.destroy();
     return key;
   }
+
+  public createFlipperTexture(): string {
+    const key = 'flipper';
+    if (this.scene.textures.exists(key)) return key;
+
+    const { width, height } = { width: 132, height: 24 };
+    const graphics = this.scene.make.graphics({ x: 0, y: 0 }, false);
+    graphics.fillStyle(COLORS.mutedCyan, 1);
+    graphics.fillRoundedRect(2, 2, width - 4, height - 4, height / 2);
+    graphics.lineStyle(3, COLORS.cyan, 1);
+    graphics.strokeRoundedRect(2, 2, width - 4, height - 4, height / 2);
+    graphics.generateTexture(key, width, height);
+    graphics.destroy();
+    return key;
+  }
 }
