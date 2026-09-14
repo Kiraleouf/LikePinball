@@ -82,7 +82,7 @@ export class GameScene extends Phaser.Scene {
 
   private createHud(): void {
     this.scoreText = this.add.text(108, 124, `SCORE  ${this.score.value.toLocaleString('fr-FR')}`, {
-      color: '#35e7ff', fontFamily: 'monospace', fontSize: '18px', letterSpacing: 2,
+      color: '#35e7ff', fontFamily: 'monospace', fontSize: '22px', fontStyle: 'bold', letterSpacing: 2,
     }).setDepth(4);
 
     this.add.text(108, 153, `OBJECTIF  ${this.table.targetScore.toLocaleString('fr-FR')}`, {
@@ -93,11 +93,11 @@ export class GameScene extends Phaser.Scene {
       .setScale(this.progression.ratio(this.score.value), 1).setDepth(5);
 
     this.add.text(108, 92, this.table.name.toUpperCase(), {
-      color: '#e8fbff', fontFamily: 'monospace', fontSize: '18px', letterSpacing: 3,
+      color: '#e8fbff', fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', letterSpacing: 3,
     }).setDepth(4);
 
     this.ballsText = this.add.text(612, 92, `BILLES  ${this.run.ballsRemaining}`, {
-      color: '#e8fbff', fontFamily: 'monospace', fontSize: '18px', letterSpacing: 2,
+      color: '#e8fbff', fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', letterSpacing: 2,
     }).setOrigin(1, 0).setDepth(4);
 
     this.stateText = this.add.text(585, 865, 'ESPACE\nLANCER', {

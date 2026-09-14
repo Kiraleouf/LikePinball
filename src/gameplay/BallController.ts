@@ -8,6 +8,7 @@ export class BallController {
   private leftLauncher = false;
   private launched = false;
   private readonly motionGuard = new MotionGuard();
+  private readonly trail: Phaser.GameObjects.Arc[];
 
   public constructor(scene: Phaser.Scene, spawn: Point, texture: string) {
     this.image = scene.matter.add.image(spawn.x, spawn.y, texture);
@@ -17,6 +18,10 @@ export class BallController {
     this.image.setDensity(PHYSICS.ball.density);
     this.image.setStatic(true);
     this.image.setData('kind', 'ball');
+    this.image.setDepth(5);
+    this.trail = Array.from({ length: 6 }, (_, index) => scene.add.circle(
+      spawn.x, spawn.y, Math.max(2, PHYSICS.ball.radius - index * 2.4), 0x35e7ff, 0,
+    ).setDepth(3));
   }
 
   public launch(): void {
@@ -28,6 +33,11 @@ export class BallController {
   public update(deltaMs: number): void {
     const body = this.image.body;
     if (!body) return;
+    for (let index = this.trail.length - 1; index > 0; index -= 1) {
+      this.trail[index].setPosition(this.trail[index - 1].x, this.trail[index - 1].y);
+      this.trail[index].setAlpha(this.launched ? (this.trail.length - index) * 0.022 : 0);
+    }
+    this.trail[0].setPosition(this.image.x, this.image.y).setAlpha(this.launched ? 0.16 : 0);
 
     if (!this.leftLauncher && this.image.y < PHYSICS.launcher.exitHeight) {
       this.leftLauncher = true;
@@ -53,6 +63,7 @@ export class BallController {
   }
 
   public destroy(): void {
+    this.trail.forEach((dot) => dot.destroy());
     this.image.destroy();
   }
 }

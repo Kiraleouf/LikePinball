@@ -9,6 +9,12 @@ export class TableRenderer {
   ) {}
 
   public draw(): void {
+    const backdrop = this.scene.add.graphics().setDepth(1);
+    backdrop.lineStyle(1, COLORS.mutedCyan, 0.16);
+    for (let y = 220; y < 960; y += 110) backdrop.lineBetween(115, y, 605, y);
+    backdrop.lineStyle(1, COLORS.cyan, 0.08);
+    backdrop.lineBetween(360, 190, 360, 955);
+
     this.scene.add
       .rectangle(360, 548, 568, 1000, COLORS.graphite)
       .setStrokeStyle(2, COLORS.mutedCyan);
@@ -28,6 +34,13 @@ export class TableRenderer {
       this.table.drain.height,
       )
       .setStrokeStyle(2, COLORS.cyan, 0.45);
+
+    this.scene.add.text(this.table.drain.x, 1038, 'DRAIN', {
+      color: '#406a74', fontFamily: 'monospace', fontSize: '11px', letterSpacing: 3,
+    }).setOrigin(0.5).setDepth(2);
+    this.scene.add.text(585, 740, 'L A N C E U R', {
+      color: '#406a74', fontFamily: 'monospace', fontSize: '10px', letterSpacing: 2,
+    }).setOrigin(0.5).setAngle(-90).setDepth(2);
 
     this.drawRails();
   }

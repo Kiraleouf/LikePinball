@@ -35,5 +35,13 @@ export class BumperController {
     this.scene.tweens.killTweensOf(this.glow);
     this.glow.setAlpha(0.9).setScale(1.25);
     this.scene.tweens.add({ targets: this.glow, alpha: 0.12, scale: 1, duration: 180, ease: 'Quad.out' });
+    const points = this.scene.add.text(this.definition.x, this.definition.y - this.definition.radius - 12,
+      `+${this.definition.score}`, {
+        color: '#e8fbff', fontFamily: 'monospace', fontSize: '15px', fontStyle: 'bold',
+      }).setOrigin(0.5).setDepth(7);
+    this.scene.tweens.add({
+      targets: points, y: points.y - 28, alpha: 0, duration: 520, ease: 'Quad.out',
+      onComplete: () => points.destroy(),
+    });
   }
 }

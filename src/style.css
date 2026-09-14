@@ -18,9 +18,15 @@ body,
 }
 
 body {
-  background: #020508;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(18, 58, 68, 0.22), transparent 42%),
+    #020508;
 }
 
 canvas {
   display: block;
+}
+
+canvas:focus {
+  outline: none;
 }
