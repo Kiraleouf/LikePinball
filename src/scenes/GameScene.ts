@@ -47,8 +47,8 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  public update(): void {
-    this.ball?.limitSpeed();
+  public update(_time: number, delta: number): void {
+    this.ball?.update(delta);
     this.leftFlipper?.update(this.leftKeys.some((key) => key.isDown));
     this.rightFlipper?.update(this.rightKeys.some((key) => key.isDown));
 

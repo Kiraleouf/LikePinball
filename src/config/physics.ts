@@ -1,13 +1,12 @@
 export const PHYSICS = {
-  gravity: 0.75,
+  gravity: 0.62,
   ball: {
     radius: 16,
-    restitution: 0.72,
+    restitution: 0.62,
     friction: 0.002,
-    frictionAir: 0.004,
-    density: 0.002,
-    maxSpeed: 28,
-    initialVelocity: { x: 4, y: 0 },
+    frictionAir: 0.006,
+    density: 0.003,
+    maxSpeed: 22,
   },
   wall: {
     restitution: 0.45,
@@ -16,8 +15,8 @@ export const PHYSICS = {
   flipper: {
     width: 132,
     height: 24,
-    angularSpeed: 0.34,
-    returnSpeed: 0.24,
+    angularSpeed: 0.22,
+    returnSpeed: 0.16,
     left: {
       pivot: { x: 245, y: 925 },
       restAngle: 0.32,
@@ -35,7 +34,13 @@ export const PHYSICS = {
     exitVelocityX: -8,
   },
   bumper: {
-    restitution: 1.35,
-    kickSpeed: 18,
+    restitution: 1.15,
+    kickSpeed: 16,
+  },
+  antiStall: {
+    speedThreshold: 0.45,
+    delayMs: 3_000,
+    nudgeVelocity: { x: 1.2, y: -5.5 },
+    maxY: 880,
   },
 } as const;

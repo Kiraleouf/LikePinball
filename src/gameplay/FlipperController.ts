@@ -27,12 +27,13 @@ export class FlipperController {
     const body = this.image.body;
     if (!body) throw new Error(`Corps Matter absent pour le flipper ${side}`);
 
-    scene.matter.add.worldConstraint(body as MatterJS.BodyType, 0, 1, {
+    scene.matter.add.worldConstraint(body as MatterJS.BodyType, 0, 0.95, {
       pointA: this.config.pivot,
       pointB: {
         x: side === 'left' ? -PHYSICS.flipper.width / 2 : PHYSICS.flipper.width / 2,
         y: 0,
       },
+      damping: 0.12,
     });
   }
 
