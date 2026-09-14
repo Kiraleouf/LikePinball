@@ -34,4 +34,6 @@ export const TABLE_ZERO: TableDefinition = {
     { id: 'right-sling', thickness: 14, color: 0xff3bc8, points: [
       { x: 515, y: 780 }, { x: 455, y: 850 },], },
   ],
+  targetScore: 10_000,
+  portal: { x: 360, y: 165, radius: 52 },
 };

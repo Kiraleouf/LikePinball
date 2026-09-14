@@ -6,6 +6,8 @@ import { BumperController } from '../gameplay/BumperController';
 import { FlipperController } from '../gameplay/FlipperController';
 import { RunState } from '../gameplay/RunState';
 import { ScoreState } from '../gameplay/ScoreState';
+import { ProgressionState } from '../gameplay/ProgressionState';
+import { PortalController } from '../gameplay/PortalController';
 import { TableRenderer } from '../rendering/TableRenderer';
 import { createRailSegments } from '../physics/railGeometry';
 import { TABLE_ZERO } from '../tables/table0';
@@ -19,10 +21,13 @@ export class GameScene extends Phaser.Scene {
   private launchKey?: Phaser.Input.Keyboard.Key;
   private readonly run = new RunState(STARTING_BALLS);
   private readonly score = new ScoreState();
+  private readonly progression = new ProgressionState(TABLE_ZERO.targetScore);
   private readonly bumpers = new Map<string, BumperController>();
   private ballsText?: Phaser.GameObjects.Text;
   private scoreText?: Phaser.GameObjects.Text;
   private stateText?: Phaser.GameObjects.Text;
+  private progressFill?: Phaser.GameObjects.Rectangle;
+  private portal?: PortalController;
 
   public constructor() {
     super('game');
@@ -34,6 +39,7 @@ export class GameScene extends Phaser.Scene {
     renderer.draw();
     this.createPhysics();
     this.createBumpers();
+    this.portal = new PortalController(this, TABLE_ZERO.portal);
     const flipperTexture = renderer.createFlipperTexture();
     this.leftFlipper = new FlipperController(this, 'left', flipperTexture);
     this.rightFlipper = new FlipperController(this, 'right', flipperTexture);
@@ -58,6 +64,12 @@ export class GameScene extends Phaser.Scene {
     this.scoreText = this.add.text(108, 124, 'SCORE  0', {
       color: '#35e7ff', fontFamily: 'monospace', fontSize: '18px', letterSpacing: 2,
     }).setDepth(4);
+
+    this.add.text(108, 153, `OBJECTIF  ${TABLE_ZERO.targetScore.toLocaleString('fr-FR')}`, {
+      color: '#79aebb', fontFamily: 'monospace', fontSize: '12px', letterSpacing: 1,
+    }).setDepth(4);
+    this.add.rectangle(108, 177, 190, 5, 0x123a44).setOrigin(0, 0.5).setDepth(4);
+    this.progressFill = this.add.rectangle(108, 177, 190, 5, 0x35e7ff).setOrigin(0, 0.5).setScale(0, 1).setDepth(5);
 
     this.add.text(108, 92, 'PLATEAU 0', {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '18px', letterSpacing: 3,
@@ -150,7 +162,10 @@ export class GameScene extends Phaser.Scene {
       if (!bumper) continue;
 
       bumper.hit(this.ball.image);
-      this.scoreText?.setText(`SCORE  ${this.score.add(bumper.definition.score).toLocaleString('fr-FR')}`);
+      const value = this.score.add(bumper.definition.score);
+      this.scoreText?.setText(`SCORE  ${value.toLocaleString('fr-FR')}`);
+      this.progressFill?.setScale(this.progression.ratio(value), 1);
+      if (this.progression.update(value)) this.portal?.activate();
     }
   }
 

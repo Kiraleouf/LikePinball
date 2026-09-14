@@ -7,6 +7,8 @@ export interface TableDefinition {
   readonly drain: RectangleDefinition;
   readonly bumpers: readonly BumperDefinition[];
   readonly rails: readonly RailDefinition[];
+  readonly targetScore: number;
+  readonly portal: CircleDefinition;
 }
 
 export interface BumperDefinition extends Point {
@@ -19,6 +21,10 @@ export interface BumperDefinition extends Point {
 export interface Point {
   readonly x: number;
   readonly y: number;
+}
+
+export interface CircleDefinition extends Point {
+  readonly radius: number;
 }
 
 export interface RectangleDefinition extends Point {
