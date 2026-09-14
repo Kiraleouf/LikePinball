@@ -35,6 +35,14 @@ export const PHYSICS = {
     velocity: { x: 0, y: -29 },
     exitHeight: 300,
     exitVelocityX: -9,
+    gate: {
+      x: 585,
+      y: 300,
+      width: 86,
+      height: 10,
+      angle: -0.36,
+      closeWhenBallXBelow: 520,
+    },
   },
   bumper: {
     restitution: 1.15,

@@ -8,6 +8,7 @@ import { RunState } from '../gameplay/RunState';
 import { ScoreState } from '../gameplay/ScoreState';
 import { ProgressionState } from '../gameplay/ProgressionState';
 import { PortalController } from '../gameplay/PortalController';
+import { LauncherGateController } from '../gameplay/LauncherGateController';
 import { TableRenderer } from '../rendering/TableRenderer';
 import { createRailSegments } from '../physics/railGeometry';
 import { getTable } from '../tables';
@@ -38,6 +39,7 @@ export class GameScene extends Phaser.Scene {
   private stateText?: Phaser.GameObjects.Text;
   private progressFill?: Phaser.GameObjects.Rectangle;
   private portal?: PortalController;
+  private launcherGate?: LauncherGateController;
   private transitioning = false;
 
   public constructor() {
@@ -58,6 +60,7 @@ export class GameScene extends Phaser.Scene {
     const renderer = new TableRenderer(this, this.table);
     renderer.draw();
     this.createPhysics();
+    this.launcherGate = new LauncherGateController(this);
     this.createBumpers();
     this.portal = this.table.id === 0 ? new PortalController(this, this.table.portal) : undefined;
     const flipperTexture = renderer.createFlipperTexture();
@@ -78,6 +81,7 @@ export class GameScene extends Phaser.Scene {
 
   public update(time: number, delta: number): void {
     this.ball?.update(delta);
+    if (this.ball?.hasExitedLauncher) this.launcherGate?.closeAfterExit(this.ball.image.x);
     this.leftFlipper?.update(this.leftKeys.some((key) => key.isDown) || time < this.leftTapUntil);
     this.rightFlipper?.update(this.rightKeys.some((key) => key.isDown) || time < this.rightTapUntil);
 
@@ -216,6 +220,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private prepareBall(texture: string): void {
+    this.launcherGate?.openForLaunch();
     this.ball = new BallController(this, this.table.spawn, texture);
     this.stateText?.setVisible(true);
   }

@@ -66,4 +66,8 @@ export class BallController {
     this.trail.forEach((dot) => dot.destroy());
     this.image.destroy();
   }
+
+  public get hasExitedLauncher(): boolean {
+    return this.leftLauncher;
+  }
 }
