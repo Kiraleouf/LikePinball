@@ -7,6 +7,7 @@ import { FlipperController } from '../gameplay/FlipperController';
 import { RunState } from '../gameplay/RunState';
 import { ScoreState } from '../gameplay/ScoreState';
 import { TableRenderer } from '../rendering/TableRenderer';
+import { createRailSegments } from '../physics/railGeometry';
 import { TABLE_ZERO } from '../tables/table0';
 
 export class GameScene extends Phaser.Scene {
@@ -96,6 +97,15 @@ export class GameScene extends Phaser.Scene {
         isStatic: true, angle: wall.angle ?? 0, restitution: PHYSICS.wall.restitution,
         friction: PHYSICS.wall.friction, label: 'wall',
       });
+    }
+    for (const rail of TABLE_ZERO.rails) {
+      for (const segment of createRailSegments(rail)) {
+        this.matter.add.rectangle(segment.x, segment.y, segment.width, segment.height, {
+          isStatic: true, angle: segment.angle, restitution: PHYSICS.wall.restitution,
+          friction: PHYSICS.wall.friction, label: `rail:${rail.id}`,
+          chamfer: { radius: rail.thickness / 2 },
+        });
+      }
     }
     this.matter.add.rectangle(TABLE_ZERO.drain.x, TABLE_ZERO.drain.y, TABLE_ZERO.drain.width, TABLE_ZERO.drain.height, {
       isStatic: true, isSensor: true, label: 'drain',

@@ -28,6 +28,24 @@ export class TableRenderer {
       this.table.drain.height,
       )
       .setStrokeStyle(2, COLORS.cyan, 0.45);
+
+    this.drawRails();
+  }
+
+  private drawRails(): void {
+    for (const rail of this.table.rails) {
+      if (rail.points.length < 2) continue;
+      const graphics = this.scene.add.graphics().setDepth(1);
+      graphics.lineStyle(rail.thickness + 6, rail.color, 0.12);
+      graphics.beginPath();
+      graphics.moveTo(rail.points[0].x, rail.points[0].y);
+      rail.points.slice(1).forEach((point) => graphics.lineTo(point.x, point.y));
+      graphics.strokePath();
+      graphics.lineStyle(rail.thickness, 0x152832, 1);
+      graphics.strokePath();
+      graphics.lineStyle(2, rail.color, 0.95);
+      graphics.strokePath();
+    }
   }
 
   public createBallTexture(): string {

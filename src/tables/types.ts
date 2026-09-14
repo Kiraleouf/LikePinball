@@ -6,6 +6,7 @@ export interface TableDefinition {
   readonly walls: readonly WallDefinition[];
   readonly drain: RectangleDefinition;
   readonly bumpers: readonly BumperDefinition[];
+  readonly rails: readonly RailDefinition[];
 }
 
 export interface BumperDefinition extends Point {
@@ -27,4 +28,11 @@ export interface RectangleDefinition extends Point {
 
 export interface WallDefinition extends RectangleDefinition {
   readonly angle?: number;
+}
+
+export interface RailDefinition {
+  readonly id: string;
+  readonly points: readonly Point[];
+  readonly thickness: number;
+  readonly color: number;
 }
