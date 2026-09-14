@@ -26,6 +26,8 @@ export class GameScene extends Phaser.Scene {
   private leftKeys: Phaser.Input.Keyboard.Key[] = [];
   private rightKeys: Phaser.Input.Keyboard.Key[] = [];
   private launchKey?: Phaser.Input.Keyboard.Key;
+  private leftTapUntil = 0;
+  private rightTapUntil = 0;
   private table: TableDefinition = getTable(0);
   private run = new RunState(STARTING_BALLS);
   private score = new ScoreState();
@@ -73,10 +75,10 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  public update(_time: number, delta: number): void {
+  public update(time: number, delta: number): void {
     this.ball?.update(delta);
-    this.leftFlipper?.update(this.leftKeys.some((key) => key.isDown));
-    this.rightFlipper?.update(this.rightKeys.some((key) => key.isDown));
+    this.leftFlipper?.update(this.leftKeys.some((key) => key.isDown) || time < this.leftTapUntil);
+    this.rightFlipper?.update(this.rightKeys.some((key) => key.isDown) || time < this.rightTapUntil);
 
   }
 
@@ -116,6 +118,12 @@ export class GameScene extends Phaser.Scene {
     this.game.canvas.focus();
     this.leftKeys = [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT), keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q)];
     this.rightKeys = [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT), keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)];
+    this.leftKeys.forEach((key) => key.on('down', () => {
+      this.leftTapUntil = this.time.now + PHYSICS.flipper.tapHoldMs;
+    }));
+    this.rightKeys.forEach((key) => key.on('down', () => {
+      this.rightTapUntil = this.time.now + PHYSICS.flipper.tapHoldMs;
+    }));
     this.launchKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.launchKey.on('down', () => {
       if (!this.run.launch()) return;
@@ -154,6 +162,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleCollision(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
     if (this.run.phase !== 'playing') return;
+    this.handleFlipperHits(event);
     this.handleBumperHits(event);
     const portalHit = event.pairs.some(({ bodyA, bodyB }) => bodyA.label === 'portal' || bodyB.label === 'portal');
     if (portalHit && this.progression.canEnterPortal('portal')) {
@@ -192,6 +201,16 @@ export class GameScene extends Phaser.Scene {
       this.scoreText?.setText(`SCORE  ${value.toLocaleString('fr-FR')}`);
       this.progressFill?.setScale(this.progression.ratio(value), 1);
       if (this.progression.update(value)) this.portal?.activate();
+    }
+  }
+
+  private handleFlipperHits(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
+    if (!this.ball?.image.body) return;
+    const ballBody = this.ball.image.body;
+    for (const { bodyA, bodyB } of event.pairs) {
+      const other = bodyA === ballBody ? bodyB : bodyB === ballBody ? bodyA : undefined;
+      if (other?.label === 'flipper:left') this.leftFlipper?.kick(this.ball.image);
+      if (other?.label === 'flipper:right') this.rightFlipper?.kick(this.ball.image);
     }
   }
 

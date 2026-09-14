@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config/game';
+import { PHYSICS } from '../config/physics';
 import type { TableDefinition } from '../tables/types';
 
 export class TableRenderer {
@@ -82,7 +83,7 @@ export class TableRenderer {
     const key = 'flipper';
     if (this.scene.textures.exists(key)) return key;
 
-    const { width, height } = { width: 132, height: 24 };
+    const { width, height } = PHYSICS.flipper;
     const graphics = this.scene.make.graphics({ x: 0, y: 0 }, false);
     graphics.fillStyle(COLORS.mutedCyan, 1);
     graphics.fillRoundedRect(2, 2, width - 4, height - 4, height / 2);

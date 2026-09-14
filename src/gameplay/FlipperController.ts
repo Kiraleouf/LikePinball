@@ -6,6 +6,7 @@ type FlipperSide = 'left' | 'right';
 export class FlipperController {
   public readonly image: Phaser.Physics.Matter.Image;
   private readonly config: (typeof PHYSICS.flipper)[FlipperSide];
+  private active = false;
 
   public constructor(
     scene: Phaser.Scene,
@@ -26,6 +27,7 @@ export class FlipperController {
 
     const body = this.image.body;
     if (!body) throw new Error(`Corps Matter absent pour le flipper ${side}`);
+    (body as MatterJS.BodyType).label = `flipper:${side}`;
 
     scene.matter.add.worldConstraint(body as MatterJS.BodyType, 0, 0.95, {
       pointA: this.config.pivot,
@@ -38,6 +40,7 @@ export class FlipperController {
   }
 
   public update(active: boolean): void {
+    this.active = active;
     const target = active ? this.config.activeAngle : this.config.restAngle;
     const current = this.image.rotation;
     const delta = target - current;
@@ -55,5 +58,16 @@ export class FlipperController {
     if (current < minAngle || current > maxAngle) {
       this.image.setRotation(Phaser.Math.Clamp(current, minAngle, maxAngle));
     }
+  }
+
+  public kick(ball: Phaser.Physics.Matter.Image): boolean {
+    if (!this.active) return false;
+    const horizontal = this.sideDirection * PHYSICS.flipper.kickVelocityX;
+    ball.setVelocity(horizontal, PHYSICS.flipper.kickVelocityY);
+    return true;
+  }
+
+  private get sideDirection(): number {
+    return this.config === PHYSICS.flipper.left ? 1 : -1;
   }
 }
