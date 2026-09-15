@@ -1,45 +1,23 @@
-export interface TableDefinition {
-  readonly id: number;
-  readonly name: string;
+export interface WorldDefinition {
   readonly backgroundColor: number;
   readonly spawn: Point;
-  readonly walls: readonly WallDefinition[];
   readonly drain: RectangleDefinition;
   readonly safetyPost: CircleDefinition;
+  readonly sectors: readonly SectorDefinition[];
+}
+
+export interface SectorDefinition {
+  readonly id: number;
+  readonly name: string;
+  readonly offsetY: number;
+  readonly walls: readonly WallDefinition[];
   readonly bumpers: readonly BumperDefinition[];
   readonly rails: readonly RailDefinition[];
-  readonly targetScore: number;
-  readonly portal: CircleDefinition;
 }
 
-export interface BumperDefinition extends Point {
-  readonly id: string;
-  readonly radius: number;
-  readonly score: number;
-  readonly color: number;
-}
-
-export interface Point {
-  readonly x: number;
-  readonly y: number;
-}
-
-export interface CircleDefinition extends Point {
-  readonly radius: number;
-}
-
-export interface RectangleDefinition extends Point {
-  readonly width: number;
-  readonly height: number;
-}
-
-export interface WallDefinition extends RectangleDefinition {
-  readonly angle?: number;
-}
-
-export interface RailDefinition {
-  readonly id: string;
-  readonly points: readonly Point[];
-  readonly thickness: number;
-  readonly color: number;
-}
+export interface BumperDefinition extends Point { readonly id: string; readonly radius: number; readonly score: number; readonly color: number }
+export interface Point { readonly x: number; readonly y: number }
+export interface CircleDefinition extends Point { readonly radius: number }
+export interface RectangleDefinition extends Point { readonly width: number; readonly height: number }
+export interface WallDefinition extends RectangleDefinition { readonly angle?: number }
+export interface RailDefinition { readonly id: string; readonly points: readonly Point[]; readonly thickness: number; readonly color: number }

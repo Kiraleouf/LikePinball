@@ -6,21 +6,12 @@ import { BumperController } from '../gameplay/BumperController';
 import { FlipperController } from '../gameplay/FlipperController';
 import { RunState } from '../gameplay/RunState';
 import { ScoreState } from '../gameplay/ScoreState';
-import { ProgressionState } from '../gameplay/ProgressionState';
-import { PortalController } from '../gameplay/PortalController';
 import { LauncherGateController } from '../gameplay/LauncherGateController';
 import { LaunchChargeState } from '../gameplay/LaunchChargeState';
 import { TableRenderer } from '../rendering/TableRenderer';
 import { LaunchGauge } from '../rendering/LaunchGauge';
 import { createRailSegments } from '../physics/railGeometry';
-import { getTable } from '../tables';
-import type { TableDefinition } from '../tables/types';
-
-interface SceneData {
-  readonly tableId?: number;
-  readonly ballsRemaining?: number;
-  readonly score?: number;
-}
+import { WORLD, worldY } from '../tables';
 
 export class GameScene extends Phaser.Scene {
   private ball?: BallController;
@@ -30,42 +21,34 @@ export class GameScene extends Phaser.Scene {
   private rightKeys: Phaser.Input.Keyboard.Key[] = [];
   private leftTapUntil = 0;
   private rightTapUntil = 0;
-  private table: TableDefinition = getTable(0);
   private run = new RunState(STARTING_BALLS);
   private score = new ScoreState();
-  private progression = new ProgressionState(this.table.targetScore);
   private readonly bumpers = new Map<string, BumperController>();
   private ballsText?: Phaser.GameObjects.Text;
   private scoreText?: Phaser.GameObjects.Text;
   private stateText?: Phaser.GameObjects.Text;
-  private progressFill?: Phaser.GameObjects.Rectangle;
-  private portal?: PortalController;
   private launcherGate?: LauncherGateController;
   private readonly launchCharge = new LaunchChargeState(PHYSICS.launcher.chargeCycleMs);
   private launchGauge?: LaunchGauge;
-  private transitioning = false;
 
   public constructor() {
     super('game');
   }
 
-  public init(data: SceneData): void {
-    this.table = getTable(data.tableId ?? 0);
-    this.run = new RunState(data.ballsRemaining ?? STARTING_BALLS);
-    this.score = new ScoreState(data.score ?? 0);
-    this.progression = new ProgressionState(this.table.targetScore);
+  public init(): void {
+    this.run = new RunState(STARTING_BALLS);
+    this.score = new ScoreState();
     this.bumpers.clear();
-    this.transitioning = false;
   }
 
   public create(): void {
-    this.cameras.main.setBackgroundColor(this.table.backgroundColor);
-    const renderer = new TableRenderer(this, this.table);
+    this.cameras.main.setBackgroundColor(WORLD.backgroundColor);
+    this.cameras.main.setBounds(0, -1_000, 720, 2_080).setScroll(0, 0);
+    const renderer = new TableRenderer(this, WORLD);
     renderer.draw();
     this.createPhysics();
     this.launcherGate = new LauncherGateController(this);
     this.createBumpers();
-    this.portal = this.table.id === 0 ? new PortalController(this, this.table.portal) : undefined;
     const flipperTexture = renderer.createFlipperTexture();
     this.leftFlipper = new FlipperController(this, 'left', flipperTexture);
     this.rightFlipper = new FlipperController(this, 'right', flipperTexture);
@@ -73,8 +56,6 @@ export class GameScene extends Phaser.Scene {
     this.createControls();
     this.createHud();
     this.launchGauge = new LaunchGauge(this);
-
-    if (this.table.id > 0) this.showTableArrival();
 
     const matterWorld = this.matter.world;
     matterWorld.on('collisionstart', this.handleCollision, this);
@@ -104,14 +85,7 @@ export class GameScene extends Phaser.Scene {
       color: '#35e7ff', fontFamily: 'monospace', fontSize: '22px', fontStyle: 'bold', letterSpacing: 2,
     }).setDepth(4);
 
-    this.add.text(108, 153, `OBJECTIF  ${this.table.targetScore.toLocaleString('fr-FR')}`, {
-      color: '#79aebb', fontFamily: 'monospace', fontSize: '12px', letterSpacing: 1,
-    }).setDepth(4);
-    this.add.rectangle(108, 177, 190, 5, 0x123a44).setOrigin(0, 0.5).setDepth(4);
-    this.progressFill = this.add.rectangle(108, 177, 190, 5, 0x35e7ff).setOrigin(0, 0.5)
-      .setScale(this.progression.ratio(this.score.value), 1).setDepth(5);
-
-    this.add.text(108, 92, this.table.name.toUpperCase(), {
+    this.add.text(108, 92, 'MONDE VERTICAL', {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', letterSpacing: 3,
     }).setDepth(4);
 
@@ -157,25 +131,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createPhysics(): void {
-    for (const wall of this.table.walls) {
-      this.matter.add.rectangle(wall.x, wall.y, wall.width, wall.height, {
-        isStatic: true, angle: wall.angle ?? 0, restitution: PHYSICS.wall.restitution,
-        friction: PHYSICS.wall.friction, label: 'wall',
-      });
-    }
-    for (const rail of this.table.rails) {
-      for (const segment of createRailSegments(rail)) {
-        this.matter.add.rectangle(segment.x, segment.y, segment.width, segment.height, {
-          isStatic: true, angle: segment.angle, restitution: PHYSICS.wall.restitution,
-          friction: PHYSICS.wall.friction, label: `rail:${rail.id}`,
-          chamfer: { radius: rail.thickness / 2 },
+    for (const sector of WORLD.sectors) {
+      for (const wall of sector.walls) {
+        this.matter.add.rectangle(wall.x, worldY(wall.y, sector.offsetY), wall.width, wall.height, {
+          isStatic: true, angle: wall.angle ?? 0, restitution: PHYSICS.wall.restitution,
+          friction: PHYSICS.wall.friction, label: `wall:sector-${sector.id}`,
         });
       }
+      for (const rail of sector.rails) {
+        const worldRail = { ...rail, points: rail.points.map((point) => ({ x: point.x, y: worldY(point.y, sector.offsetY) })) };
+        for (const segment of createRailSegments(worldRail)) {
+          this.matter.add.rectangle(segment.x, segment.y, segment.width, segment.height, {
+            isStatic: true, angle: segment.angle, restitution: PHYSICS.wall.restitution,
+            friction: PHYSICS.wall.friction, label: `rail:${rail.id}`,
+            chamfer: { radius: rail.thickness / 2 },
+          });
+        }
+      }
     }
-    this.matter.add.rectangle(this.table.drain.x, this.table.drain.y, this.table.drain.width, this.table.drain.height, {
+    this.matter.add.rectangle(WORLD.drain.x, WORLD.drain.y, WORLD.drain.width, WORLD.drain.height, {
       isStatic: true, isSensor: true, label: 'drain',
     });
-    const post = this.table.safetyPost;
+    const post = WORLD.safetyPost;
     this.matter.add.circle(post.x, post.y, post.radius, {
       isStatic: true,
       restitution: PHYSICS.safetyPost.restitution,
@@ -185,9 +162,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createBumpers(): void {
-    for (const definition of this.table.bumpers) {
-      const bumper = new BumperController(this, definition);
-      this.bumpers.set(bumper.label, bumper);
+    for (const sector of WORLD.sectors) {
+      for (const definition of sector.bumpers) {
+        const bumper = new BumperController(this, { ...definition, y: worldY(definition.y, sector.offsetY) });
+        this.bumpers.set(bumper.label, bumper);
+      }
     }
   }
 
@@ -195,11 +174,6 @@ export class GameScene extends Phaser.Scene {
     if (this.run.phase !== 'playing') return;
     this.handleFlipperHits(event);
     this.handleBumperHits(event);
-    const portalHit = event.pairs.some(({ bodyA, bodyB }) => bodyA.label === 'portal' || bodyB.label === 'portal');
-    if (portalHit && this.progression.canEnterPortal('portal')) {
-      this.beginTableTransition();
-      return;
-    }
     const drainHit = event.pairs.some(({ bodyA, bodyB }) => bodyA.label === 'drain' || bodyB.label === 'drain');
     if (!drainHit) return;
 
@@ -230,8 +204,6 @@ export class GameScene extends Phaser.Scene {
       bumper.hit(this.ball.image);
       const value = this.score.add(bumper.definition.score);
       this.scoreText?.setText(`SCORE  ${value.toLocaleString('fr-FR')}`);
-      this.progressFill?.setScale(this.progression.ratio(value), 1);
-      if (this.table.id === 0 && this.progression.update(value)) this.portal?.activate();
     }
   }
 
@@ -249,7 +221,7 @@ export class GameScene extends Phaser.Scene {
     this.launcherGate?.openForLaunch();
     this.launchCharge.reset();
     this.launchGauge?.update(0);
-    this.ball = new BallController(this, this.table.spawn, texture);
+    this.ball = new BallController(this, WORLD.spawn, texture);
     this.stateText?.setVisible(true);
   }
 
@@ -260,25 +232,4 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(5);
   }
 
-  private beginTableTransition(): void {
-    if (this.transitioning) return;
-    this.transitioning = true;
-    this.ball?.image.setStatic(true);
-    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.scene.restart({
-        tableId: this.table.id + 1,
-        ballsRemaining: this.run.ballsRemaining,
-        score: this.score.value,
-      } satisfies SceneData);
-    });
-    this.cameras.main.fadeOut(450, 53, 231, 255);
-  }
-
-  private showTableArrival(): void {
-    const label = this.add.text(360, 520, `${this.table.name.toUpperCase()}\nATTEINT`, {
-      align: 'center', color: '#35e7ff', fontFamily: 'monospace', fontSize: '34px', letterSpacing: 6,
-    }).setOrigin(0.5).setDepth(8);
-    this.cameras.main.fadeIn(450, 2, 5, 8);
-    this.tweens.add({ targets: label, alpha: 0, delay: 1_100, duration: 500 });
-  }
 }
