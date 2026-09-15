@@ -1,3 +1,4 @@
+import { bumperImpulse } from './bumperImpulse';
 import { LAUNCHER, launcherStructure, rightBoundary, hasExitedLauncher } from './machine';
 import { createGameLighting } from './components/lighting';
 import { PHYSICS_3D, approachAngle, flipperYaw } from '../config/physics3d';
@@ -44,7 +45,12 @@ export class PinballPrototype {
   private readonly templateCatalogue = readTemplateCatalogue();
   private readonly sectors = this.initialSectors();
   private readonly cameraSector = new CameraSectorState(this.sectors.length, SECTOR_LENGTH, -10, 2);
-  private readonly bumperScores = new Map<number, number>();
+  private readonly bumpers = new Map<number, { score: number; center: THREE.Vector3; visual: Component3D; nextHitAt: number }>();
+  private physicsTime = 0;
+  private incomingSpeed = 0;
+  private bumperHitCount = 0;
+  private readonly physicsDebug = import.meta.env.DEV && new URLSearchParams(location.search).has('physics-debug');
+  private readonly boardNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(this.boardRotation);
   private readonly sectorGates = new Map<number, PhysicsMesh>();
   private eventQueue?: RAPIER.EventQueue;
   private world?: RAPIER.World;
@@ -157,9 +163,9 @@ export class PinballPrototype {
     const position = this.onBoard(x, z, 0.62);
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(this.boardRotation));
     const visual = this.component('bumper', { size: { x: radius * 2, y: 1.2, z: radius * 2 } });
-    const collider = world.createCollider(this.collider(visual).setRestitution(1.15)
+    const collider = world.createCollider(this.collider(visual).setRestitution(PHYSICS_3D.bumperRestitution)
       .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
-    this.bumperScores.set(collider.handle, definition.score);
+    this.bumpers.set(collider.handle, { score: definition.score, center: position, visual, nextHitAt: 0 });
     const mesh = visual.root; this.hitVisuals.set(collider.handle, visual);
     mesh.position.copy(position); mesh.quaternion.copy(this.boardRotation); this.scene.add(mesh);
   }
@@ -241,7 +247,6 @@ export class PinballPrototype {
     this.charge.update(delta * 1_000);
     if (this.charge.active) this.launcherVisual?.setState('Activate');
     this.launcherVisual?.setAmount(this.charge.value);
-    this.components.forEach(component => component.update(delta));
     const left = this.keys.has('ArrowLeft') || this.keys.has('KeyQ'); const right = this.keys.has('ArrowRight') || this.keys.has('KeyD');
     this.accumulator += delta;
     while (this.accumulator >= PHYSICS_3D.timestep) {
@@ -252,10 +257,13 @@ export class PinballPrototype {
       flipper.angle = approachAngle(flipper.angle, active ? flipper.active : flipper.rest, active ? PHYSICS_3D.flipperAngularSpeed : PHYSICS_3D.flipperReturnSpeed, PHYSICS_3D.timestep);
       flipper.body.setNextKinematicRotation(this.flipperRotation(flipper.angle));
     });
+      this.physicsTime += PHYSICS_3D.timestep;
+      if (this.physicsDebug && this.ball) { const v = this.ball.linvel(); this.incomingSpeed = Math.hypot(v.x, v.y, v.z); }
       world.step(this.eventQueue); this.handleCollisions(); this.updateLauncher();
       if (this.ball) { const velocity = this.ball.linvel(); const speed = Math.hypot(velocity.x, velocity.y, velocity.z); if (speed > PHYSICS_3D.maxBallSpeed) { const scale = PHYSICS_3D.maxBallSpeed / speed; this.ball.setLinvel({ x: velocity.x * scale, y: velocity.y * scale, z: velocity.z * scale }, true); } }
       this.accumulator -= PHYSICS_3D.timestep;
     }
+    this.components.forEach(component => component.update(delta));
     for (const { body, mesh } of this.moving) { const p = body.translation(); const r = body.rotation(); mesh.position.set(p.x, p.y, p.z); mesh.quaternion.set(r.x, r.y, r.z, r.w); }
     if (this.ball) this.updateBall(delta);
     this.updateHud(); this.renderer.render(this.scene, this.camera);
@@ -274,10 +282,17 @@ export class PinballPrototype {
       if (!started || (first !== ballHandle && second !== ballHandle)) return;
       const other = first === ballHandle ? second : first;
       if (other === this.drainHandle) { this.loseBall(); return; }
-      const points = this.bumperScores.get(other);
       this.ballVisual?.setState('Hit');
-      this.hitVisuals.get(other)?.setState('Hit');
-      if (points) this.addScore(points);
+      const bumper = this.bumpers.get(other);
+      if (!bumper) { this.hitVisuals.get(other)?.setState('Hit'); return; }
+      if (!this.ball || this.run.phase !== 'playing' || this.physicsTime < bumper.nextHitAt) return;
+      bumper.nextHitAt = this.physicsTime + PHYSICS_3D.bumperCooldown;
+      this.ball.applyImpulse(bumperImpulse(this.ball.translation(), bumper.center, this.ball.linvel(), this.boardNormal, this.ball.mass()), true);
+      bumper.visual.setState('Hit'); this.addScore(bumper.score);
+      if (this.physicsDebug) {
+        const v = this.ball.linvel(); const speed = Math.hypot(v.x, v.y, v.z);
+        this.setText('physics-debug', `Bumper ${++this.bumperHitCount} · entrée ${this.incomingSpeed.toFixed(1)} → sortie ${speed.toFixed(1)} u/s`);
+      }
     });
   }
 
@@ -382,6 +397,7 @@ export class PinballPrototype {
       <div class="launcher-panel"><div><span>LANCEUR</span><strong id="charge">PRÊT</strong></div><i><b id="power-fill"></b></i></div>
       <footer><kbd>Q</kbd><kbd>←</kbd> GAUCHE <kbd>D</kbd><kbd>→</kbd> DROITE <kbd>ESPACE</kbd> LANCER</footer>
     </aside><div class="run-overlay" id="run-overlay"><div class="run-card"><span class="eyebrow">ASCENSION // 3D</span><h1>LIKE<span>PINBALL</span></h1><p>Monte, marque et ouvre la voie vers les secteurs supérieurs.</p><button id="start-run">LANCER LA RUN</button><small>ESPACE OU ENTRÉE</small></div></div>`;
+    if (this.physicsDebug) { const output = document.createElement('output'); output.id = 'physics-debug'; output.style.cssText = 'position:absolute;bottom:12px;right:18px;color:#fff;background:#071014;padding:8px;font:12px monospace'; output.textContent = 'Diagnostic bumpers · en attente d’un impact'; ui.append(output); }
     const editorLink = document.createElement('a'); editorLink.className = 'editor-link'; editorLink.href = '/?editor=1'; editorLink.textContent = 'SECTOR LAB'; ui.append(editorLink);
     const showroomLink = document.createElement('a'); showroomLink.className = 'showroom-link'; showroomLink.href = '/?showroom=1'; showroomLink.textContent = 'COMPONENT STUDIO'; ui.append(showroomLink);
     ui.querySelector('#start-run')?.addEventListener('click', () => this.startSession());

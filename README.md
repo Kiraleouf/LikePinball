@@ -186,3 +186,9 @@ La run prend une copie du catalogue au départ. À chaque génération du secteu
 Le lanceur occupe un couloir structurel à droite de la largeur jouable. La bille part devant le piston, remonte réellement le couloir et suit le guide arrondi pour rejoindre le haut du secteur 0. La barrière anti-retour se ferme après le passage complet de la bille. Un lancement qui retombe dans le couloir est préparé à nouveau sans consommer de bille ; le drain reste dans la zone principale.
 
 `src/three/machine.ts` définit cette structure une seule fois pour le jeu et le contexte du Sector Lab. Aucun couloir n'est intégré aux templates. Toute la largeur du plateau est disponible pour les composants ; le Lab refuse la sauvegarde d'un élément du secteur 0 dépassant dans le couloir. La puissance reste réglée par la durée de maintien d'Espace.
+
+### Bumpers actifs
+
+Chaque contact admissible applique une impulsion radiale depuis le centre du bumper vers la bille, projetée dans le plan incliné du plateau. La composante tangentielle est conservée ; aucune position n'est changée. `PHYSICS_3D.bumperKickSpeed` règle le supplément de vitesse (9 unités/s par défaut), `bumperRestitution` le rebond passif et `bumperCooldown` l'intervalle minimal entre deux activations du même bumper. L'impulsion est limitée par le plafond de vitesse global et proportionnelle à la masse de la bille.
+
+Impulsion, score et animation `Hit` partent du même événement physique ; le flash est actualisé avant le rendu. En développement seulement, `?physics-debug=1` affiche les vitesses avant/après le dernier contact pour vérifier le balancing. Ce diagnostic peut être combiné avec `editor-test=1` et n'est pas affiché dans le build de production.
