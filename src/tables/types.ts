@@ -3,7 +3,7 @@ export interface WorldDefinition {
   readonly spawn: Point;
   readonly drain: RectangleDefinition;
   readonly safetyPost: CircleDefinition;
-  readonly sectors: readonly SectorDefinition[];
+  readonly sectors: SectorDefinition[];
 }
 
 export interface SectorDefinition {

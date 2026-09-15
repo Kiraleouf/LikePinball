@@ -10,7 +10,12 @@ export const COLORS = {
 } as const;
 
 export const STARTING_BALLS = 3;
-export const SECTOR_UNLOCK_SCORES = [10_000, 50_000, 100_000] as const;
+const INITIAL_SECTOR_UNLOCK_SCORES = [10_000, 50_000, 100_000] as const;
+
+export function sectorUnlockScore(targetSector: number): number {
+  return INITIAL_SECTOR_UNLOCK_SCORES[targetSector - 1]
+    ?? 100_000 + (targetSector - 3) * 75_000;
+}
 
 export const CAMERA = {
   sectorHeight: 1_000,

@@ -11,25 +11,7 @@ export class TableRenderer {
   ) {}
 
   public draw(): void {
-    for (const sector of this.world.sectors) {
-      const backdrop = this.scene.add.graphics().setDepth(1);
-      backdrop.lineStyle(1, COLORS.mutedCyan, 0.16);
-      for (let y = 120; y < 1_000; y += 110) backdrop.lineBetween(115, worldY(y, sector.offsetY), 605, worldY(y, sector.offsetY));
-      backdrop.lineStyle(1, COLORS.cyan, 0.08);
-      backdrop.lineBetween(360, worldY(80, sector.offsetY), 360, worldY(1_000, sector.offsetY));
-      this.scene.add.rectangle(360, worldY(540, sector.offsetY), 568, 1_000, COLORS.graphite).setStrokeStyle(2, COLORS.mutedCyan);
-      this.scene.add.text(120, worldY(110, sector.offsetY), sector.name.toUpperCase(), {
-        color: '#406a74', fontFamily: 'monospace', fontSize: '14px', letterSpacing: 3,
-      }).setDepth(2);
-      for (const wall of sector.walls) {
-        this.scene.add.rectangle(wall.x, worldY(wall.y, sector.offsetY), wall.width, wall.height, COLORS.graphite)
-          .setStrokeStyle(3, COLORS.cyan, 0.85).setRotation(wall.angle ?? 0);
-      }
-      for (const obstacle of sector.obstacles) {
-        this.scene.add.rectangle(obstacle.x, worldY(obstacle.y, sector.offsetY), obstacle.width, obstacle.height, COLORS.graphite)
-          .setStrokeStyle(2, 0xffbd35, 0.9).setRotation(obstacle.angle ?? 0).setDepth(2);
-      }
-    }
+    this.world.sectors.forEach((sector) => this.drawSector(sector));
 
     this.scene.add
       .rectangle(
@@ -52,11 +34,26 @@ export class TableRenderer {
       color: '#406a74', fontFamily: 'monospace', fontSize: '10px', letterSpacing: 2,
     }).setOrigin(0.5).setAngle(-90).setDepth(2);
 
-    this.drawRails();
   }
 
-  private drawRails(): void {
-    for (const sector of this.world.sectors) {
+  public drawSector(sector: WorldDefinition['sectors'][number]): void {
+      const backdrop = this.scene.add.graphics().setDepth(1);
+      backdrop.lineStyle(1, COLORS.mutedCyan, 0.16);
+      for (let y = 120; y < 1_000; y += 110) backdrop.lineBetween(115, worldY(y, sector.offsetY), 605, worldY(y, sector.offsetY));
+      backdrop.lineStyle(1, COLORS.cyan, 0.08);
+      backdrop.lineBetween(360, worldY(80, sector.offsetY), 360, worldY(1_000, sector.offsetY));
+      this.scene.add.rectangle(360, worldY(540, sector.offsetY), 568, 1_000, COLORS.graphite).setStrokeStyle(2, COLORS.mutedCyan);
+      this.scene.add.text(120, worldY(110, sector.offsetY), sector.name.toUpperCase(), {
+        color: '#406a74', fontFamily: 'monospace', fontSize: '14px', letterSpacing: 3,
+      }).setDepth(2);
+      for (const wall of sector.walls) {
+        this.scene.add.rectangle(wall.x, worldY(wall.y, sector.offsetY), wall.width, wall.height, COLORS.graphite)
+          .setStrokeStyle(3, COLORS.cyan, 0.85).setRotation(wall.angle ?? 0);
+      }
+      for (const obstacle of sector.obstacles) {
+        this.scene.add.rectangle(obstacle.x, worldY(obstacle.y, sector.offsetY), obstacle.width, obstacle.height, COLORS.graphite)
+          .setStrokeStyle(2, 0xffbd35, 0.9).setRotation(obstacle.angle ?? 0).setDepth(2);
+      }
       for (const rail of sector.rails) {
         if (rail.points.length < 2) continue;
         const graphics = this.scene.add.graphics().setDepth(1);
@@ -70,7 +67,6 @@ export class TableRenderer {
         graphics.lineStyle(2, rail.color, 0.95);
         graphics.strokePath();
       }
-    }
   }
 
   public createBallTexture(): string {

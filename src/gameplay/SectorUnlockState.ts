@@ -1,19 +1,19 @@
 export class SectorUnlockState {
   private unlockedCount = 0;
 
-  public constructor(private readonly thresholds: readonly number[]) {}
+  public constructor(private readonly thresholdForSector: (sector: number) => number) {}
 
   public update(score: number): readonly number[] {
     const unlocked: number[] = [];
-    while (this.unlockedCount < this.thresholds.length && score >= this.thresholds[this.unlockedCount]) {
+    while (score >= this.thresholdForSector(this.unlockedCount + 1)) {
       unlocked.push(this.unlockedCount);
       this.unlockedCount += 1;
     }
     return unlocked;
   }
 
-  public get nextThreshold(): number | undefined {
-    return this.thresholds[this.unlockedCount];
+  public get nextThreshold(): number {
+    return this.thresholdForSector(this.unlockedCount + 1);
   }
 
   public get highestAccessibleSector(): number {

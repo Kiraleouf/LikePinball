@@ -6,7 +6,7 @@ const WORLD = generateWorld('test-seed');
 
 describe('monde vertical', () => {
   it('empile au moins deux secteurs dans un même repère physique', () => {
-    expect(WORLD.sectors).toHaveLength(4);
+    expect(WORLD.sectors).toHaveLength(2);
     expect(WORLD.sectors[1].offsetY).toBeLessThan(WORLD.sectors[0].offsetY);
     expect(worldY(500, WORLD.sectors[1].offsetY)).toBe(-500);
   });
@@ -79,8 +79,8 @@ describe('monde vertical', () => {
   });
 
   it('génère des flippers secondaires asymétriques sans modifier les principaux', () => {
-    const alpha = generateWorld('alpha-22');
-    const beta = generateWorld('beta-22');
+    const alpha = generateWorld('alpha-22', 6);
+    const beta = generateWorld('beta-22', 6);
     expect(alpha.sectors[0].flippers).toEqual([]);
     expect(alpha.sectors.slice(1).every((sector) => sector.flippers.length >= 1)).toBe(true);
     expect(alpha.sectors.slice(1).map((sector) => sector.flippers)).not.toEqual(
@@ -89,5 +89,12 @@ describe('monde vertical', () => {
     expect(alpha.sectors.slice(1).some((sector) =>
       sector.flippers.length === 1 || sector.flippers[0].y !== sector.flippers[1]?.y,
     )).toBe(true);
+  });
+
+  it('génère autant de secteurs successifs que demandé sans limite de définition', () => {
+    const extended = generateWorld('long-run', 12);
+    expect(extended.sectors).toHaveLength(12);
+    expect(extended.sectors[11].id).toBe(11);
+    expect(extended.sectors[11].offsetY).toBe(-11_000);
   });
 });

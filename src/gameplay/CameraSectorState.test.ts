@@ -14,5 +14,7 @@ describe('CameraSectorState', () => {
     const state = new CameraSectorState(2, 1_000, 80, 160);
     expect(state.update(-100)).toBe(1);
     expect(state.update(-2_000)).toBeUndefined();
+    state.setSectorCount(3);
+    expect(state.update(-2_000)).toBe(2);
   });
 });

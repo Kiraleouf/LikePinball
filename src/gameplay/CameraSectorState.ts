@@ -2,11 +2,15 @@ export class CameraSectorState {
   public currentSector = 0;
 
   public constructor(
-    private readonly sectorCount: number,
+    private sectorCount: number,
     private readonly sectorHeight: number,
     private readonly seamY: number,
     private readonly engagement: number,
   ) {}
+
+  public setSectorCount(count: number): void {
+    this.sectorCount = count;
+  }
 
   public update(ballY: number): number | undefined {
     const upperBoundary = this.seamY - this.currentSector * this.sectorHeight;

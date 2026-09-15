@@ -1,7 +1,6 @@
 import { BACKGROUND_COLOR } from '../config/game';
 import type { BumperDefinition, FlipperDefinition, RailDefinition, SectorDefinition, WallDefinition, WorldDefinition } from './types';
 
-const SECTOR_COUNT = 4;
 const COLORS = [0xff3bc8, 0xffbd35, 0x35e7ff] as const;
 
 function hashSeed(seed: string): number {
@@ -33,7 +32,7 @@ function shuffled<T>(values: readonly T[], random: () => number): T[] {
   return result;
 }
 
-function generateSector(id: number, random: () => number): SectorDefinition {
+function buildSector(id: number, random: () => number): SectorDefinition {
   const bumperSlots = shuffled([
     { x: 205, y: 330 }, { x: 360, y: 390 }, { x: 505, y: 330 },
     { x: 235, y: 570 }, { x: 475, y: 590 }, { x: 350, y: 700 },
@@ -69,18 +68,20 @@ function generateSector(id: number, random: () => number): SectorDefinition {
     { x: 195, y: 980, width: 235, height: 28, angle: 0.18 },
     { x: 525, y: 980, width: 235, height: 28, angle: -0.18 },
   );
-  if (id === SECTOR_COUNT - 1) walls.push({ x: 360, y: 72, width: 548, height: 28 });
   return { id, name: `Secteur ${id}`, offsetY: -id * 1_000, walls, bumpers, rails, obstacles, flippers };
 }
 
-export function generateWorld(seed: string): WorldDefinition {
-  const random = randomFrom(seed);
+export function generateSector(seed: string, id: number): SectorDefinition {
+  return buildSector(id, randomFrom(`${seed}:sector:${id}`));
+}
+
+export function generateWorld(seed: string, sectorCount = 2): WorldDefinition {
   return {
     backgroundColor: BACKGROUND_COLOR,
     spawn: { x: 585, y: 940 },
     drain: { x: 360, y: 1060, width: 260, height: 40 },
     safetyPost: { x: 360, y: 962, radius: 11 },
-    sectors: Array.from({ length: SECTOR_COUNT }, (_, id) => generateSector(id, random)),
+    sectors: Array.from({ length: sectorCount }, (_, id) => generateSector(seed, id)),
   };
 }
 
