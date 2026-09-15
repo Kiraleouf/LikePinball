@@ -5,6 +5,7 @@ export interface TableDefinition {
   readonly spawn: Point;
   readonly walls: readonly WallDefinition[];
   readonly drain: RectangleDefinition;
+  readonly safetyPost: CircleDefinition;
   readonly bumpers: readonly BumperDefinition[];
   readonly rails: readonly RailDefinition[];
   readonly targetScore: number;

@@ -15,6 +15,7 @@ export const TABLE_ONE: TableDefinition = {
     { x: 525, y: 980, width: 235, height: 28, angle: -0.18 },
   ],
   drain: { x: 360, y: 1060, width: 260, height: 40 },
+  safetyPost: { x: 360, y: 962, radius: 11 },
   bumpers: [
     { id: 'one-left', x: 235, y: 465, radius: 40, score: 750, color: 0x35e7ff },
     { id: 'one-right', x: 465, y: 465, radius: 40, score: 750, color: 0x35e7ff },

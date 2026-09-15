@@ -12,6 +12,10 @@ export const PHYSICS = {
     restitution: 0.45,
     friction: 0.02,
   },
+  safetyPost: {
+    restitution: 0.72,
+    friction: 0.015,
+  },
   flipper: {
     width: 108,
     height: 24,

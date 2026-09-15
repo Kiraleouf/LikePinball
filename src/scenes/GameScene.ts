@@ -175,6 +175,13 @@ export class GameScene extends Phaser.Scene {
     this.matter.add.rectangle(this.table.drain.x, this.table.drain.y, this.table.drain.width, this.table.drain.height, {
       isStatic: true, isSensor: true, label: 'drain',
     });
+    const post = this.table.safetyPost;
+    this.matter.add.circle(post.x, post.y, post.radius, {
+      isStatic: true,
+      restitution: PHYSICS.safetyPost.restitution,
+      friction: PHYSICS.safetyPost.friction,
+      label: 'safety-post',
+    });
   }
 
   private createBumpers(): void {

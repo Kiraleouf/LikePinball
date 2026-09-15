@@ -39,6 +39,11 @@ export class TableRenderer {
     this.scene.add.text(this.table.drain.x, 1038, 'DRAIN', {
       color: '#406a74', fontFamily: 'monospace', fontSize: '11px', letterSpacing: 3,
     }).setOrigin(0.5).setDepth(2);
+    const post = this.table.safetyPost;
+    this.scene.add.circle(post.x, post.y, post.radius + 7, COLORS.cyan, 0.1).setDepth(2);
+    this.scene.add.circle(post.x, post.y, post.radius, COLORS.graphite)
+      .setStrokeStyle(3, COLORS.cyan, 0.95).setDepth(3);
+    this.scene.add.circle(post.x, post.y, 3, COLORS.white, 0.9).setDepth(3);
     this.scene.add.text(585, 740, 'L A N C E U R', {
       color: '#406a74', fontFamily: 'monospace', fontSize: '10px', letterSpacing: 2,
     }).setOrigin(0.5).setAngle(-90).setDepth(2);
