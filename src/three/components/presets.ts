@@ -1,21 +1,26 @@
 import bundled from './presets.json';
 
-export const kinds = ['flipper', 'bumper', 'post', 'ball', 'rail', 'wall', 'launcher', 'gate', 'slingshot'] as const;
+export const kinds = ['flipper', 'bumper', 'post', 'ball', 'rail', 'wall', 'launcher', 'gate', 'slingshot', 'tube'] as const;
 export type ComponentKind = typeof kinds[number];
 export interface VisualParams {
   width: number; height: number; depth: number; bevel: number; taper: number; faceAngle: number;
   metalness: number; roughness: number; emissiveIntensity: number;
   color: string; neon: string;
+  tubeDiameter: number; tubeThickness: number; tubeOpacity: number;
+  tubeRings: number; tubeRingThickness: number; tubeRingScale: number; tubeRingSpacing: number;
 }
 export const defaults: VisualParams = { width: 1, height: 1, depth: 1, bevel: 0.08, taper: 0.72, faceAngle: 0,
-  metalness: 0.78, roughness: 0.28, emissiveIntensity: 1.4, color: '#18232d', neon: '#35e7ff' };
+  metalness: 0.78, roughness: 0.28, emissiveIntensity: 1.4, color: '#18232d', neon: '#35e7ff',
+  tubeDiameter: 1.5, tubeThickness: 0.055, tubeOpacity: 0.18, tubeRings: 1, tubeRingThickness: 0.035, tubeRingScale: 1.03, tubeRingSpacing: 2 };
 export const ranges: Record<Exclude<keyof VisualParams, 'color' | 'neon'>, readonly [number, number, number]> = {
   width: [0.5, 1.5, 0.01], height: [0.5, 1.5, 0.01], depth: [0.5, 1.5, 0.01], faceAngle: [-3.15, 3.15, 0.05],
   bevel: [0.01, 0.18, 0.01], taper: [0.45, 1, 0.01], metalness: [0, 1, 0.01], roughness: [0.05, 1, 0.01], emissiveIntensity: [0, 4, 0.05],
+  tubeDiameter: [1.4, 3, 0.05], tubeThickness: [0.02, 0.15, 0.005], tubeOpacity: [0.05, 0.5, 0.01],
+  tubeRings: [0, 1, 1], tubeRingThickness: [0.015, 0.1, 0.005], tubeRingScale: [1, 1.3, 0.01], tubeRingSpacing: [0.7, 5, 0.1],
 };
 export interface PresetFile { version: 1; components: Partial<Record<ComponentKind, VisualParams>> }
 export const STORAGE_KEY = 'likepinball.component-presets.v1';
-export function defaultParams(kind: ComponentKind): VisualParams { return { ...defaults, ...(kind === 'ball' ? { color: '#d6e5ed', roughness: 0.16 } : {}) }; }
+export function defaultParams(kind: ComponentKind): VisualParams { return { ...defaults, ...(kind === 'ball' ? { color: '#d6e5ed', roughness: 0.16 } : {}), ...(kind === 'tube' ? { color: '#6096a3', metalness: 0.12, roughness: 0.16 } : {}) }; }
 export function bundledPresets(): PresetFile { return parsePresets(JSON.stringify(bundled)); }
 export function parsePresets(source: string): PresetFile {
   const data: unknown = JSON.parse(source);

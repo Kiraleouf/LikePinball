@@ -8,6 +8,8 @@ export const PHYSICS_3D = {
   linearDamping: 0.025,
   ballRestitution: 0.72,
   ballFriction: 0.08,
+  tubeRestitution: 0.05,
+  tubeFriction: 0.04,
   bumperKickSpeed: 9,
   bumperRestitution: 0.65,
   bumperCooldown: 0.1,

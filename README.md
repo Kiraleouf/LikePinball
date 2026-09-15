@@ -15,7 +15,7 @@ npm run dev
 - Showroom : `/?showroom=1`
 - Éditeur de secteurs : `/?editor=1`
 
-Le **Component Studio** permet d’explorer neuf composants avec une caméra orbitale, leurs états et des paramètres de forme/matière. Les premières propositions visuelles sont **provisoires** : le showroom sert à les faire évoluer.
+Le **Component Studio** permet d’explorer dix composants avec une caméra orbitale, leurs états et des paramètres de forme/matière. Les premières propositions visuelles sont **provisoires** : le showroom sert à les faire évoluer.
 
 ### Une bibliothèque commune
 
@@ -201,3 +201,13 @@ Le slingshot partagé réunit un châssis triangulaire chanfreiné, trois ancrag
 Le Studio règle dimensions, finition, couleurs et orientation de la face (radians). Le Lab ajoute une rotation libre propre à chaque instance ; ses X/Y et son angle sont conservés dans le tableau optionnel `sector.slingshots` des templates version 1. Les anciens fichiers restent compatibles. Le template initial fourni contient une paire au-dessus des flippers ; les layouts déjà sauvegardés localement restent prioritaires et peuvent recevoir cette paire avec la palette **Slingshot**.
 
 `PHYSICS_3D.slingshotKickSpeed` règle le supplément de vitesse (11 unités/s), `slingshotRestitution` le rebond passif et `slingshotCooldown` le délai minimal (0,12 s). Un unique volume convexe et sa face active proviennent de la factory ; l’impulsion respecte la masse, le plan du plateau et le plafond de vitesse global. Le diagnostic `?physics-debug=1` affiche aussi les frappes de slingshot.
+
+### Tubes 3D dans Sector Lab
+
+La palette **Tube** démarre un tracé : cliquer pour placer l’entrée puis les points de contrôle, et **Terminer le tube** (ou Entrée) pour définir la sortie. Échap annule le tracé. Sélectionner un anneau sur le plateau ou dans **Point du tube** pour régler X/Y, le glisser, modifier sa hauteur Z, ajouter un point après lui ou le supprimer. X/Y sont les pixels du template ; Z est la hauteur du fond du tube en unités du plateau. Entrée et sortie restent à Z = 0.
+
+Le Studio règle le diamètre intérieur, l’épaisseur et l’opacité du verre, les matériaux, les couleurs et les anneaux lumineux (présence, taille, espacement, intensité). Les tubes utilisent la même factory dans les trois vues. Chaque instance conserve les paramètres appliqués dans son template ; **Reprendre le style du Studio** actualise explicitement une instance existante. Les anneaux de contrôle restent visibles dans le Lab pour l’édition.
+
+Le tableau optionnel `sector.tubes` des templates version 1 conserve le type, les points ordonnés `{x,y,z}`, les indices `entry`/`exit` et les paramètres. Les anciens templates restent compatibles. Le tube est une coque creuse continue : rendu et collision Rapier utilisent les mêmes triangles. Le rail existant reste un guide ouvert. Prévoir des virages assez larges et une vitesse suffisante pour monter ; les chemins très serrés ou qui se croisent ne garantissent pas un passage jouable.
+
+**Tester ce tube** ouvre un aperçu temporaire avec la bille placée sur le plateau devant son entrée. Lancer avec Espace pour vérifier physiquement l’entrée, les hauteurs et la sortie avant de sauvegarder le secteur. La bille est libre et guidée par les collisions ; aucune trajectoire forcée n’est appliquée.

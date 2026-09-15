@@ -1,15 +1,17 @@
 import { LAUNCHER, launcherStructure, rightBoundary } from '../three/machine';
 import { elementBounds, overflowSides } from './bounds';
+import { tubeWorldPath, withTubePoints } from '../tables/tubePath';
 import { createGameLighting } from '../three/components/lighting';
 import { flipperYaw } from '../config/physics3d';
 import { createComponent, readPresets, resolveParams, type Component3D } from '../three/components';
 import * as THREE from 'three';
-import type { BumperDefinition, FlipperDefinition, PostDefinition, SlingshotDefinition, RailDefinition, SectorDefinition, WallDefinition } from '../tables/types';
+import type { TubeDefinition, TubePoint, BumperDefinition, FlipperDefinition, PostDefinition, SlingshotDefinition, RailDefinition, SectorDefinition, WallDefinition } from '../tables/types';
 import { parseTemplate, serializeTemplate, type SectorTemplateMetadata } from './template';
 import { readInitialTemplate } from '../tables/initialTemplate';
 import { readTemplateCatalogue, saveTemplate, removeCustomTemplate } from '../tables/templateCatalogue';
 
 type EditableElement =
+  | ({ readonly kind: 'tube' } & TubeDefinition)
   | ({ readonly kind: 'bumper' } & BumperDefinition)
   | ({ readonly kind: 'flipper' } & FlipperDefinition)
   | ({ readonly kind: 'obstacle' } & WallDefinition & { readonly id: string })
@@ -37,6 +39,8 @@ export class SectorEditor {
   private elements: EditableElement[] = [];
   private selectedId?: string;
   private dragging = false;
+  private tubeDraft?: TubePoint[];
+  private tubePointIndex = 0;
   private serial = 1;
   private editingInitial = true;
   private metadata?: SectorTemplateMetadata;
@@ -82,18 +86,21 @@ export class SectorEditor {
     const panel = document.createElement('aside'); panel.className = 'editor-panel';
     panel.innerHTML = `<header><span>LIKEPINBALL</span><strong>SECTOR LAB</strong><a href="/?showroom=1">STUDIO</a><a href="/">QUITTER</a></header>
       <section><label>TEMPLATE ACTIF<select id="template-list"></select></label><button id="open-initial">OUVRIR LE SECTEUR 0</button><label>NOM DU TEMPLATE<input id="template-name" value="Nouveau secteur"></label><label>INDEX FIXE (VIDE = GÉNÉRIQUE)<input id="sector-index" type="number" min="0" step="1" placeholder="Générique"></label><p id="template-context"></p></section>
-      <section><span class="panel-label">AJOUTER</span><div class="tool-grid"><button data-add="bumper">BUMPER</button><button data-add="flipper">FLIPPER</button><button data-add="post">POST</button><button data-add="slingshot">SLINGSHOT</button><button data-add="wall">MUR</button><button data-add="obstacle">OBSTACLE</button><button data-add="rail">RAIL</button></div><label>ÉLÉMENT<select id="element-list"></select></label></section>
+      <section><span class="panel-label">AJOUTER</span><div class="tool-grid"><button data-add="bumper">BUMPER</button><button data-add="flipper">FLIPPER</button><button data-add="post">POST</button><button data-add="slingshot">SLINGSHOT</button><button data-add="wall">MUR</button><button data-add="obstacle">OBSTACLE</button><button data-add="rail">RAIL</button><button data-add="tube">TUBE</button></div><label>ÉLÉMENT<select id="element-list"></select></label></section>
+      <section id="tube-drawing" hidden><p id="tube-drawing-help"></p><button id="finish-tube">TERMINER LE TUBE</button><button id="cancel-tube">ANNULER LE TRACÉ</button></section>
       <section id="properties"><span class="panel-label">PROPRIÉTÉS</span><p>Sélectionne un élément sur le plateau.</p></section>
       <section id="bounds-warning" class="bounds-warning" role="status" aria-label="Dépassements du plateau" hidden></section>
       <section class="editor-actions"><button id="apply-initial" class="primary">SAUVEGARDER POUR LES RUNS</button><button id="remove-template">RETIRER DES RUNS</button><button id="new-template">NOUVEAU</button><button id="load-template">CHARGER</button><button id="save-template">EXPORTER JSON</button><button id="test-template">TESTER LE SECTEUR</button><input id="template-file" type="file" accept="application/json,.json" hidden><p role="status" id="editor-status"></p></section>
       <footer><span class="connection-key"></span> ZONES DE CONNEXION · SNAP 20 PX</footer>`;
     panel.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((button) => button.addEventListener('click', () => this.add(button.dataset.add as EditableElement['kind'])));
+    panel.querySelector('#finish-tube')?.addEventListener('click', () => this.finishTube());
+    panel.querySelector('#cancel-tube')?.addEventListener('click', () => { this.tubeDraft = undefined; this.rebuild(); });
     panel.querySelector('#new-template')?.addEventListener('click', () => this.reset());
     panel.querySelector('#open-initial')?.addEventListener('click', () => this.openInitial());
     panel.querySelector('#apply-initial')?.addEventListener('click', () => this.applyInitial());
     panel.querySelector('#remove-template')?.addEventListener('click', () => this.removeTemplate());
     panel.querySelector<HTMLSelectElement>('#template-list')?.addEventListener('change', event => this.openSaved((event.currentTarget as HTMLSelectElement).value));
-    panel.querySelector<HTMLSelectElement>('#element-list')?.addEventListener('change', event => { this.selectedId = (event.currentTarget as HTMLSelectElement).value || undefined; this.rebuild(); this.showProperties(); });
+    panel.querySelector<HTMLSelectElement>('#element-list')?.addEventListener('change', event => { this.selectedId = (event.currentTarget as HTMLSelectElement).value || undefined; this.tubePointIndex = 0; this.rebuild(); this.showProperties(); });
     panel.querySelector('#save-template')?.addEventListener('click', () => this.save());
     panel.querySelector('#load-template')?.addEventListener('click', () => panel.querySelector<HTMLInputElement>('#template-file')?.click());
     panel.querySelector<HTMLInputElement>('#template-file')?.addEventListener('change', (event) => void this.load((event.currentTarget as HTMLInputElement).files?.[0]));
@@ -103,13 +110,14 @@ export class SectorEditor {
 
   private bind(): void {
     addEventListener('resize', () => this.resize());
-    this.renderer.domElement.addEventListener('pointerdown', (event) => { this.dragging = true; this.pick(event); });
+    this.renderer.domElement.addEventListener('pointerdown', (event) => { if (this.tubeDraft) { this.drawTubePoint(event); return; } this.dragging = true; this.pick(event); });
     this.renderer.domElement.addEventListener('pointermove', (event) => { if (this.dragging && this.selectedId) this.moveSelected(event); });
     addEventListener('pointerup', () => { this.dragging = false; });
-    addEventListener('keydown', (event) => { if (event.target instanceof HTMLElement && event.target.closest('input,select,textarea')) return; if ((event.code === 'Delete' || event.code === 'Backspace') && this.selectedId) { event.preventDefault(); this.removeSelected(); } });
+    addEventListener('keydown', (event) => { if (event.target instanceof HTMLElement && event.target.closest('input,select,textarea')) return; if (this.tubeDraft && event.code === 'Enter') { this.finishTube(); return; } if (event.code === 'Escape') { this.tubeDraft = undefined; this.rebuild(); return; } if ((event.code === 'Delete' || event.code === 'Backspace') && this.selectedId) { event.preventDefault(); this.removeSelected(); } });
   }
 
   private add(kind: EditableElement['kind']): void {
+    if (kind === 'tube') { this.tubeDraft = []; this.selectedId = undefined; this.rebuild(); this.showProperties(); return; }
     let id: string; do { id = `${kind}-${this.serial++}`; } while (this.elements.some(element => element.id === id));
     if (kind === 'bumper') this.elements.push({ kind, id, x: 360, y: 500, radius: 48, score: 1_250, color: CYAN });
     if (kind === 'flipper') this.elements.push({ kind, id, x: 360, y: 720, side: 'left', restAngle: 0, activeAngle: -0.65 });
@@ -135,7 +143,7 @@ export class SectorEditor {
       const bounds = elementBounds(visual); this.bounds.set(element.id, bounds);
       if (element.id === this.selectedId) { this.selectionBox = new THREE.Box3Helper(bounds, 0xffbd35); this.scene.add(this.selectionBox); }
     }
-    this.updateBoundsWarning(); this.render();
+    this.renderTubeDraft(); this.updateBoundsWarning(); this.render();
   }
 
   private updateBoundsWarning(): void {
@@ -156,9 +164,12 @@ export class SectorEditor {
   private createVisual(element: EditableElement): THREE.Object3D {
     const group = new THREE.Group();
     const add = (kind: Parameters<typeof createComponent>[0], options: Parameters<typeof createComponent>[1] = {}) => {
-      const component = createComponent(kind, { ...options, params: resolveParams(kind, this.visualPresets) }); this.components.push(component); group.add(component.root); return component.root;
+      const component = createComponent(kind, { ...options, params: options.params ?? resolveParams(kind, this.visualPresets) }); this.components.push(component); group.add(component.root); return component.root;
     };
-    if (element.kind === 'post') {
+    if (element.kind === 'tube') {
+      const tube = add('tube', { params: element.params, path: tubeWorldPath(element.points) });
+      tube.traverse(object => { if (object.userData.tubePointIndex !== undefined) { object.visible = true; if (element.id === this.selectedId && object.userData.tubePointIndex === this.tubePointIndex && object instanceof THREE.Mesh) { object.material = (object.material as THREE.MeshStandardMaterial).clone(); (object.material as THREE.MeshStandardMaterial).color.setHex(0xffbd35); (object.material as THREE.MeshStandardMaterial).emissive.setHex(0xffbd35); } } });
+    } else if (element.kind === 'post') {
       const diameter = element.radius * 2 / 45; add('post', { size: { x: diameter, y: 0.9, z: diameter } }); group.position.copy(this.worldPoint(element.x, element.y, 0.45));
     } else if (element.kind === 'bumper') {
       const radius = element.radius / 48; add('bumper', { size: { x: radius * 2, y: 1.2, z: radius * 2 } }); group.position.copy(this.worldPoint(element.x, element.y, 0.62));
@@ -177,14 +188,33 @@ export class SectorEditor {
     return group;
   }
 
-  private pick(event: PointerEvent): void { this.setRay(event); const hit = this.raycaster.intersectObjects([...this.visuals.values()], true)[0]; this.selectedId = hit ? this.objectIds.get(hit.object) : undefined; this.rebuild(); this.showProperties(); }
-  private moveSelected(event: PointerEvent): void { this.setRay(event); const point = new THREE.Vector3(); if (!this.raycaster.ray.intersectPlane(this.plane, point)) return; this.setPosition(this.snap(point.x * 45 + 360), this.snap(point.z * 50 + 540)); }
+  private pick(event: PointerEvent): void {
+    this.setRay(event);
+    const hits = this.raycaster.intersectObjects([...this.visuals.values()], true);
+    const first = hits[0];
+    // The transparent shell must not mask its editing handles.
+    const hit = hits.find(h => h.object.userData.tubePointIndex !== undefined && this.objectIds.get(h.object) === this.objectIds.get(first?.object)) ?? first;
+    this.selectedId = hit ? this.objectIds.get(hit.object) : undefined;
+    if (hit?.object.userData.tubePointIndex !== undefined) this.tubePointIndex = Number(hit.object.userData.tubePointIndex);
+    else if (this.selectedId) {
+      const rect = this.renderer.domElement.getBoundingClientRect(); let nearest = 32;
+      this.visuals.get(this.selectedId)?.traverse(object => {
+        if (object.userData.tubePointIndex === undefined) return;
+        const point = object.getWorldPosition(new THREE.Vector3()).project(this.camera);
+        const distance = Math.hypot((point.x + 1) * rect.width / 2 + rect.left - event.clientX, (1 - point.y) * rect.height / 2 + rect.top - event.clientY);
+        if (distance < nearest) { nearest = distance; this.tubePointIndex = Number(object.userData.tubePointIndex); }
+      });
+    }
+    this.rebuild(); this.showProperties();
+  }
+  private moveSelected(event: PointerEvent): void { this.setRay(event); const point = new THREE.Vector3(); const selected = this.elements.find(e => e.id === this.selectedId); const plane = selected?.kind === 'tube' ? new THREE.Plane(new THREE.Vector3(0, 1, 0), -(selected.points[this.tubePointIndex]?.z ?? 0) - selected.params.tubeDiameter / 2) : this.plane; if (!this.raycaster.ray.intersectPlane(plane, point)) return; this.setPosition(this.snap(point.x * 45 + 360), this.snap(point.z * 50 + 540)); }
   private setRay(event: PointerEvent): void { const rect = this.renderer.domElement.getBoundingClientRect(); this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1); this.raycaster.setFromCamera(this.pointer, this.camera); }
-  private setPosition(x: number, y: number, refreshProperties = true): void { this.elements = this.elements.map((element) => element.id !== this.selectedId ? element : element.kind === 'rail' ? { ...element, points: element.points.map((point) => ({ x: point.x + x - element.points[0].x, y: point.y + y - element.points[0].y })) } : { ...element, x, y }); this.rebuild(); if (refreshProperties) this.showProperties(); }
+  private setPosition(x: number, y: number, refreshProperties = true): void { const selected = this.elements.find(e => e.id === this.selectedId); if (selected?.kind === 'tube') { this.updateTubePoint(selected, { x, y }, refreshProperties); return; } this.elements = this.elements.map((element) => element.id !== this.selectedId ? element : element.kind === 'tube' ? element : element.kind === 'rail' ? { ...element, points: element.points.map((point) => ({ x: point.x + x - element.points[0].x, y: point.y + y - element.points[0].y })) } : { ...element, x, y }); this.rebuild(); if (refreshProperties) this.showProperties(); }
 
   private showProperties(): void {
     const host = document.getElementById('properties'); const element = this.elements.find(({ id }) => id === this.selectedId); if (!host) return;
     if (!element) { host.innerHTML = '<span class="panel-label">PROPRIÉTÉS</span><p>Sélectionne un élément sur le plateau ou dans la liste.</p>'; return; }
+    if (element.kind === 'tube') { this.showTubeProperties(element, host); return; }
     const point = element.kind === 'rail' ? element.points[0] : element;
     const angle = element.kind === 'flipper' ? element.restAngle : element.kind === 'obstacle' || element.kind === 'wall' || element.kind === 'slingshot' ? element.angle ?? 0 : element.kind === 'rail' ? Math.atan2((element.points[1].y - point.y) / 50, (element.points[1].x - point.x) / 45) : undefined;
     host.innerHTML = `<span class="panel-label"></span><p>${element.kind === 'flipper' ? 'X / Y = centre du pivot. Angle en radians ; la course de frappe est conservée.' : element.kind === 'slingshot' ? 'La bande néon indique la face active. Angle en radians, ajouté à l’orientation du preset Studio.' : 'Position en pixels du template. Angle en radians.'}</p><div class="property-grid"><label>X<input id="prop-x" type="number" step="0.25" value="${point.x}"></label><label>Y<input id="prop-y" type="number" step="0.25" value="${point.y}"></label>${angle === undefined ? '' : `<label>ANGLE<input id="prop-angle" type="number" step="0.05" value="${angle}"></label>`}${element.kind === 'flipper' ? '<label>CÔTÉ<select id="prop-side"><option value="left">Gauche</option><option value="right">Droite</option></select></label>' : ''}</div><button id="delete-element" class="danger">SUPPRIMER</button>`;
@@ -210,6 +240,70 @@ export class SectorEditor {
     });
     const side = host.querySelector<HTMLSelectElement>('#prop-side');
     if (side && element.kind === 'flipper') { side.value = element.side; side.addEventListener('change', () => { const value = side.value === 'right' ? 'right' : 'left'; this.elements = this.elements.map(item => item.id === element.id && item.kind === 'flipper' ? { ...item, side: value, restAngle: -item.restAngle, activeAngle: -item.activeAngle } : item); this.rebuild(); this.showProperties(); }); }
+    host.querySelector('#delete-element')?.addEventListener('click', () => this.removeSelected());
+  }
+
+  private drawTubePoint(event: PointerEvent): void {
+    this.setRay(event); const point = new THREE.Vector3();
+    if (!this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), point)) return;
+    const next = { x: this.snap(point.x * 45 + 360), y: this.snap(point.z * 50 + 540), z: 0 };
+    const draft = this.tubeDraft!; const previous = draft[draft.length - 1];
+    if (draft.length >= 64 || previous && Math.hypot(next.x - previous.x, next.y - previous.y) < 10) { this.message('Espacer les points ; 64 points maximum.'); return; }
+    draft.push(next); this.rebuild();
+  }
+
+  private renderTubeDraft(): void {
+    const panel = document.getElementById('tube-drawing')!; panel.hidden = !this.tubeDraft;
+    if (!this.tubeDraft) return;
+    const points = this.tubeDraft;
+    document.getElementById('tube-drawing-help')!.textContent = `Tracé du tube · ${points.length} point(s). Cliquer pour ${points.length ? 'ajouter un anneau' : 'placer l’entrée'}, puis terminer : le dernier point devient la sortie. Hauteurs réglables ensuite. Entrée = terminer, Échap = annuler.`;
+    (document.getElementById('finish-tube') as HTMLButtonElement).disabled = points.length < 2;
+    if (!points.length) return;
+    const visual = points.length >= 2 ? createComponent('tube', { params: resolveParams('tube', this.visualPresets), path: tubeWorldPath(points) }) : createComponent('post', { size: { x: 0.2, y: 0.3, z: 0.2 } });
+    if (points.length === 1) visual.root.position.copy(this.worldPoint(points[0].x, points[0].y, 0.15));
+    this.components.push(visual); this.scene.add(visual.root);
+  }
+
+  private finishTube(): void {
+    if (!this.tubeDraft || this.tubeDraft.length < 2) return;
+    let id: string; do { id = `tube-${this.serial++}`; } while (this.elements.some(e => e.id === id));
+    this.elements.push({ kind: 'tube', type: 'tube', id, points: this.tubeDraft, entry: 0, exit: this.tubeDraft.length - 1, params: resolveParams('tube', this.visualPresets) });
+    this.tubeDraft = undefined; this.selectedId = id; this.tubePointIndex = 0; this.rebuild(); this.showProperties(); this.message('Tube créé. Sélectionner un anneau pour modifier sa position et sa hauteur.');
+  }
+
+  private replaceTube(tube: TubeDefinition, points: readonly TubePoint[], refresh = true): void {
+    try {
+      const updated = withTubePoints(tube, points);
+      this.elements = this.elements.map(e => e.id === tube.id ? { ...updated, kind: 'tube' } : e);
+      this.tubePointIndex = Math.min(this.tubePointIndex, points.length - 1); this.rebuild(); if (refresh) this.showProperties();
+    } catch (error) { this.message(String(error)); }
+  }
+  private updateTubePoint(tube: TubeDefinition, patch: Partial<TubePoint>, refresh = false): void {
+    this.replaceTube(tube, tube.points.map((p, i) => i === this.tubePointIndex ? { ...p, ...patch } : p), refresh);
+  }
+
+  private showTubeProperties(tube: TubeDefinition, host: HTMLElement): void {
+    this.tubePointIndex = Math.min(this.tubePointIndex, tube.points.length - 1);
+    const i = this.tubePointIndex; const point = tube.points[i]; const endpoint = i === 0 || i === tube.points.length - 1;
+    host.innerHTML = `<span class="panel-label"></span><label>POINT DU TUBE<select id="tube-point"></select></label><p>Cliquer ou glisser un anneau pour le déplacer. X/Y : plateau ; Z : hauteur au-dessus du plateau. Entrée et sortie restent à Z = 0.</p><div class="property-grid"><label>X<input id="prop-x" type="number" step="1" value="${point.x}"></label><label>Y<input id="prop-y" type="number" step="1" value="${point.y}"></label><label>HAUTEUR Z<input id="prop-z" type="number" min="0" max="12" step="0.1" value="${point.z}" ${endpoint ? 'disabled' : ''}></label></div><button id="insert-point">AJOUTER UN POINT APRÈS</button><button id="remove-point" ${tube.points.length <= 2 ? 'disabled' : ''}>SUPPRIMER CE POINT</button><p>Diamètre intérieur : ${tube.params.tubeDiameter.toFixed(2)} · style conservé dans le template.</p><button id="tube-preset">REPRENDRE LE STYLE DU STUDIO</button><button id="test-tube">TESTER CE TUBE</button><button id="delete-element" class="danger">SUPPRIMER LE TUBE</button>`;
+    host.querySelector('.panel-label')!.textContent = tube.id;
+    const list = host.querySelector<HTMLSelectElement>('#tube-point')!;
+    list.replaceChildren(...tube.points.map((_, n) => new Option(n === 0 ? 'Entrée · Z = 0' : n === tube.points.length - 1 ? 'Sortie · Z = 0' : `Anneau ${n}`, String(n)))); list.value = String(i);
+    list.onchange = () => { this.tubePointIndex = Number(list.value); this.rebuild(); this.showProperties(); };
+    for (const key of ['x', 'y', 'z'] as const) host.querySelector<HTMLInputElement>(`#prop-${key}`)!.oninput = event => {
+      const value = (event.currentTarget as HTMLInputElement).valueAsNumber;
+      const current = this.elements.find(e => e.id === tube.id);
+      if (current?.kind === 'tube' && Number.isFinite(value)) this.updateTubePoint(current, { [key]: value });
+    };
+    host.querySelector<HTMLButtonElement>('#insert-point')!.onclick = () => {
+      const current = this.elements.find(e => e.id === tube.id); if (current?.kind !== 'tube') return;
+      const points = [...current.points]; const point = points[i]; const next = points[i + 1] ?? { x: point.x + 40, y: point.y + 40, z: 0 };
+      points.splice(i + 1, 0, i === points.length - 1 ? next : { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2, z: (point.z + next.z) / 2 });
+      this.tubePointIndex++; this.replaceTube(current, points);
+    };
+    host.querySelector<HTMLButtonElement>('#remove-point')!.onclick = () => { const current = this.elements.find(e => e.id === tube.id); if (current?.kind === 'tube') this.replaceTube(current, current.points.filter((_, n) => n !== i)); };
+    host.querySelector<HTMLButtonElement>('#tube-preset')!.onclick = () => { const params = resolveParams('tube', readPresets()); this.elements = this.elements.map(e => e.id === tube.id && e.kind === 'tube' ? { ...e, params } : e); this.rebuild(); this.showProperties(); };
+    host.querySelector<HTMLButtonElement>('#test-tube')!.onclick = () => { try { localStorage.setItem('likepinball.editor-test', this.json()); location.href = `/?editor-test=1&tube-test=${encodeURIComponent(tube.id)}`; } catch (error) { this.message(String(error)); } };
     host.querySelector('#delete-element')?.addEventListener('click', () => this.removeSelected());
   }
 
@@ -241,8 +335,9 @@ export class SectorEditor {
     catch (error) { this.message(`Sauvegarde impossible : ${String(error)}`); }
   }
   private removeSelected(): void { this.elements = this.elements.filter(({ id }) => id !== this.selectedId); this.selectedId = undefined; this.rebuild(); this.showProperties(); }
-  private reset(): void { this.editingInitial = false; this.metadata = { id: `custom-${crypto.randomUUID()}`, tags: [], weight: 1, connections: { top: true, bottom: true }, optionalElementIds: [], variationSlots: [] }; (document.getElementById('template-name') as HTMLInputElement).value = 'Nouveau secteur'; this.elements = []; this.selectedId = undefined; this.rebuild(); this.showProperties(); this.updateContext(); this.message('Nouveau template libre.'); }
+  private reset(): void { this.tubeDraft = undefined; this.editingInitial = false; this.metadata = { id: `custom-${crypto.randomUUID()}`, tags: [], weight: 1, connections: { top: true, bottom: true }, optionalElementIds: [], variationSlots: [] }; (document.getElementById('template-name') as HTMLInputElement).value = 'Nouveau secteur'; this.elements = []; this.selectedId = undefined; this.rebuild(); this.showProperties(); this.updateContext(); this.message('Nouveau template libre.'); }
   private json(): string {
+    if (this.tubeDraft) throw new Error('Terminer ou annuler le tracé du tube avant de sauvegarder.');
     const input = document.getElementById('sector-index') as HTMLInputElement;
     const sectorIndex = this.editingInitial ? 0 : input.value === '' ? undefined : input.valueAsNumber;
     if (input.validity.badInput || (sectorIndex !== undefined && (!Number.isSafeInteger(sectorIndex) || sectorIndex < 0))) throw new Error('L’index doit être un entier positif ou nul, ou rester vide.');
@@ -268,12 +363,15 @@ export class SectorEditor {
       obstacles: this.elements.filter((item): item is Extract<EditableElement, { kind: 'obstacle' }> => item.kind === 'obstacle').map(({ kind: _, id: __, ...item }) => item),
       flippers: this.elements.filter((item): item is Extract<EditableElement, { kind: 'flipper' }> => item.kind === 'flipper').map(({ kind: _, ...item }) => item),
       slingshots: this.elements.filter((item): item is Extract<EditableElement, { kind: 'slingshot' }> => item.kind === 'slingshot').map(({ kind: _, ...item }) => item),
+      tubes: this.elements.filter((item): item is Extract<EditableElement, { kind: 'tube' }> => item.kind === 'tube').map(({ kind: _, ...item }) => item),
       posts: this.elements.filter((item): item is Extract<EditableElement, { kind: 'post' }> => item.kind === 'post').map(({ kind: _, ...item }) => item),
     };
   }
   private fromSector(sector: SectorDefinition): void {
+    this.tubeDraft = undefined; this.tubePointIndex = 0;
     (document.getElementById('template-name') as HTMLInputElement).value = sector.name;
     this.elements = [
+      ...(sector.tubes ?? []).map(item => ({ kind: 'tube' as const, ...item })),
       ...sector.bumpers.map(item => ({ kind: 'bumper' as const, ...item })),
       ...sector.flippers.map(item => ({ kind: 'flipper' as const, ...item })),
       ...(sector.slingshots ?? []).map(item => ({ kind: 'slingshot' as const, ...item })),

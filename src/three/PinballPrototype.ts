@@ -1,5 +1,6 @@
 import { bumperImpulse, directionalImpulse } from './bumperImpulse';
 import { SlingshotContact } from './slingshotContact';
+import { tubeWorldPath } from '../tables/tubePath';
 import { LAUNCHER, launcherStructure, rightBoundary, hasExitedLauncher } from './machine';
 import { createGameLighting } from './components/lighting';
 import { PHYSICS_3D, approachAngle, flipperYaw } from '../config/physics3d';
@@ -45,6 +46,8 @@ export class PinballPrototype {
   private readonly charge = new LaunchChargeState(1_400);
   private readonly templateCatalogue = readTemplateCatalogue();
   private readonly sectors = this.initialSectors();
+  private readonly tubeTestId = new URLSearchParams(location.search).has('editor-test') ? new URLSearchParams(location.search).get('tube-test') : null;
+  private tubeTest?: Component3D;
   private readonly cameraSector = new CameraSectorState(this.sectors.length, SECTOR_LENGTH, -10, 2);
   private readonly bumpers = new Map<number, { score: number; center: THREE.Vector3; visual: Component3D; nextHitAt: number }>();
   private physicsTime = 0;
@@ -130,6 +133,14 @@ export class PinballPrototype {
     sector.walls.forEach((wall) => this.addFixedBox('editable-wall', this.mapX(wall.x), this.mapZ(sector.id, wall.y), 0.36, wall.width / 90, wall.height / 100, 0.36, CYAN, -(wall.angle ?? 0)));
     sector.posts?.forEach((post) => this.addPlayablePost(sector.id, post));
     sector.slingshots?.forEach(sling => this.addSlingshot(sector.id, sling));
+    sector.tubes?.forEach(tube => {
+      const visual = this.component('tube', { params: tube.params, path: tubeWorldPath(tube.points) });
+      const position = this.onBoard(0, centerZ, 0);
+      const body = this.requireWorld().createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(this.boardRotation));
+      this.requireWorld().createCollider(this.collider(visual).setRestitution(PHYSICS_3D.tubeRestitution).setFriction(PHYSICS_3D.tubeFriction), body);
+      visual.root.position.copy(position); visual.root.quaternion.copy(this.boardRotation); this.scene.add(visual.root);
+      if (sector.id === 0 && tube.id === this.tubeTestId) this.tubeTest = visual;
+    });
     this.addSectorGate(sector.id);
   }
 
@@ -265,6 +276,7 @@ export class PinballPrototype {
   private collider(component: Component3D): RAPIER.ColliderDesc {
     const c = component.collider;
     if (c.type === 'ball') return RAPIER.ColliderDesc.ball(c.radius);
+    if (c.type === 'trimesh') return RAPIER.ColliderDesc.trimesh(c.vertices, c.indices, RAPIER.TriMeshFlags.FIX_INTERNAL_EDGES);
     if (c.type === 'cylinder') return RAPIER.ColliderDesc.cylinder(c.halfHeight, c.radius);
     if (c.type === 'convex') { const hull = RAPIER.ColliderDesc.convexHull(c.vertices); if (!hull) throw new Error('Géométrie convexe de composant invalide'); return hull; }
     return RAPIER.ColliderDesc.cuboid(c.half.x, c.half.y, c.half.z);
@@ -356,13 +368,14 @@ export class PinballPrototype {
     const power = this.charge.release(); if (power === undefined || !this.run.launch() || !this.ball) return;
     this.launcherVisual?.setState('Hit');
     this.ball.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
-    const velocity = new THREE.Vector3(0, 0, -PHYSICS_3D.launchMinSpeed - power * PHYSICS_3D.launchExtraSpeed).applyQuaternion(this.boardRotation);
+    const direction = this.tubeTest?.tube?.curve.getTangent(0) ?? new THREE.Vector3(0, 0, -1);
+    const velocity = direction.multiplyScalar(PHYSICS_3D.launchMinSpeed + power * PHYSICS_3D.launchExtraSpeed).applyQuaternion(this.boardRotation);
     this.ball.setLinvel(velocity, true);
   }
 
   private launcherGateRotation(): THREE.Quaternion { return this.boardRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)); }
   private updateLauncher(): void {
-    if (!this.ball || this.run.phase !== 'playing' || this.launcherExited) return;
+    if (!this.ball || this.run.phase !== 'playing' || this.launcherExited || this.tubeTest) return;
     const local = this.toBoard(this.ball.translation());
     if (local.z < LAUNCHER.spawnZ - 0.5) this.ballLeftStart = true;
     if (hasExitedLauncher(local.x, local.z, (this.ballVisual?.size.x ?? 0.84) / 2)) this.closeLauncherGate();
@@ -454,7 +467,11 @@ export class PinballPrototype {
     }
     return generateWorld(this.seed, 2, this.templateCatalogue).sectors;
   }
-  private launchPosition(): THREE.Vector3 { return this.onBoard(LAUNCHER.x, LAUNCHER.spawnZ, (this.ballVisual?.size.y ?? 0.84) / 2 + 0.015); }
+  private launchPosition(): THREE.Vector3 {
+    const radius = (this.ballVisual?.size.y ?? 0.84) / 2;
+    if (this.tubeTest?.tube) { const curve = this.tubeTest.tube.curve; const point = curve.getPoint(0).addScaledVector(curve.getTangent(0), -1.4); return this.onBoard(point.x, point.z, radius + 0.015); }
+    return this.onBoard(LAUNCHER.x, LAUNCHER.spawnZ, radius + 0.015);
+  }
   private mapX(x: number): number { return (x - 360) / 45; }
   private mapZ(sector: number, y: number): number { return (y - 540) / 50 - sector * SECTOR_LENGTH; }
   private onBoard(x: number, z: number, height: number): THREE.Vector3 { return new THREE.Vector3(x, height, z).applyQuaternion(this.boardRotation); }

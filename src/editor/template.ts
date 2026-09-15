@@ -1,4 +1,7 @@
 import type { SectorDefinition } from '../tables/types';
+import { validTubePoints } from '../tables/tubePath';
+import { parsePresets } from '../three/components/presets';
+import type { TubePoint } from '../tables/types';
 
 export interface SectorTemplateFile {
   readonly version: 1;
@@ -47,7 +50,12 @@ function isSector(value: unknown): boolean {
     && array('rails', v => identified(v) && positive(v.thickness) && finite(v.color) && Array.isArray(v.points) && v.points.length >= 2 && v.points.every(point) && v.points.slice(1).every((p, i) => { const a = v.points as { x: number; y: number }[]; return p.x !== a[i].x || p.y !== a[i].y; }))
     && array('flippers', v => identified(v) && point(v) && ['left', 'right'].includes(String(v.side)) && finite(v.restAngle) && finite(v.activeAngle))
     && (value.posts === undefined || array('posts', v => identified(v) && point(v) && positive(v.radius)))
-    && (value.slingshots === undefined || array('slingshots', v => identified(v) && point(v) && finite(v.angle)));
+    && (value.slingshots === undefined || array('slingshots', v => identified(v) && point(v) && finite(v.angle)))
+    && (value.tubes === undefined || array('tubes', v => {
+      if (!identified(v) || v.type !== 'tube' || !Array.isArray(v.points) || !v.points.every(p => point(p) && isRecord(p) && finite(p.z))
+        || !validTubePoints(v.points as TubePoint[]) || v.entry !== 0 || v.exit !== v.points.length - 1 || !isRecord(v.params)) return false;
+      try { v.params = parsePresets(JSON.stringify({ version: 1, components: { tube: v.params } })).components.tube; return true; } catch { return false; }
+    }));
 }
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);

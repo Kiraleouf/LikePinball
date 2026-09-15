@@ -6,15 +6,16 @@ import { createComponent, kinds, states, ranges, bundledPresets, readPresets, re
   type Component3D, type ComponentKind, type PresetFile, type VisualParams, type VisualState } from '../three/components';
 import './showroom.css';
 
-const titles: Record<ComponentKind, string> = { flipper: 'Flipper', bumper: 'Bumper', post: 'Post', ball: 'Ball', rail: 'Rail', wall: 'Wall / obstacle', launcher: 'Launcher', gate: 'One-way gate', slingshot: 'Slingshot' };
+const titles: Record<ComponentKind, string> = { flipper: 'Flipper', bumper: 'Bumper', post: 'Post', ball: 'Ball', rail: 'Rail', wall: 'Wall / obstacle', launcher: 'Launcher', gate: 'One-way gate', slingshot: 'Slingshot', tube: 'Tube' };
 const descriptions: Record<ComponentKind, string> = {
+  tube: 'Verre teinté · trajet continu · anneaux de contrôle lumineux',
   slingshot: 'Châssis triangulaire · trois ancrages · bande lumineuse = face active',
   flipper: 'Corps effilé · contour lumineux · moyeu métallique', bumper: 'Coque usinée · capot mobile · anneau d’impact',
   post: 'Socle métallique · bague de protection · couronne lumineuse', ball: 'Surface polie · reflets d’environnement · volume sphérique',
   rail: 'Profil sur supports · couronnement métallique · ligne lumineuse', wall: 'Bloc chanfreiné · insert lumineux · surface de contact',
   launcher: 'Corps guidé · ressort · piston mobile', gate: 'Supports latéraux · traverse articulée · passage contrôlé',
 };
-const labels: Record<keyof VisualParams, string> = { width: 'Largeur / diamètre', height: 'Hauteur', depth: 'Profondeur', bevel: 'Arrondi des arêtes', taper: 'Proportion de la pointe', faceAngle: 'Orientation de la face (rad)', metalness: 'Metalness', roughness: 'Roughness', emissiveIntensity: 'Intensité émissive', color: 'Corps', neon: 'Accent lumineux' };
+const labels: Record<keyof VisualParams, string> = { width: 'Largeur / diamètre', height: 'Hauteur', depth: 'Profondeur', bevel: 'Arrondi des arêtes', taper: 'Proportion de la pointe', faceAngle: 'Orientation de la face (rad)', metalness: 'Metalness', roughness: 'Roughness', emissiveIntensity: 'Intensité émissive', color: 'Corps', neon: 'Accent lumineux', tubeDiameter: 'Diamètre intérieur', tubeThickness: 'Épaisseur du verre', tubeOpacity: 'Opacité du verre', tubeRings: 'Anneaux (0 masqués / 1 visibles)', tubeRingThickness: 'Épaisseur des anneaux', tubeRingScale: 'Diamètre relatif des anneaux', tubeRingSpacing: 'Espacement des anneaux' };
 
 export class Showroom {
   private readonly scene = new THREE.Scene();
@@ -42,7 +43,7 @@ export class Showroom {
   constructor(private readonly root: HTMLElement) {
     root.classList.add('showroom-mode'); document.title = 'LikePinball — Component Studio';
     root.innerHTML = `<header class="studio-header"><a class="studio-brand" href="/">LP<span>LIKEPINBALL<small>COMPONENT STUDIO</small></span></a><span class="studio-badge">DESIGN EXPLORATION / 01</span><nav><a href="/?editor=1">Sector Lab ↗</a><a href="/">Jouer ↗</a></nav></header>
-      <aside class="studio-library"><span class="studio-eyebrow">BIBLIOTHÈQUE / ${String(kinds.length).padStart(2, '0')}</span><h2>Les pièces<br>de la machine.</h2><div class="component-list">${kinds.map((kind, i) => `<button data-kind="${kind}"><span>0${i + 1}</span>${titles[kind]}<b>↗</b></button>`).join('')}</div><div class="studio-note"><span class="status-dot"></span> DESIGN EN COURS<p>Explorez les formes et les matières. Ces propositions restent ouvertes à l’itération.</p></div></aside>
+      <aside class="studio-library"><span class="studio-eyebrow">BIBLIOTHÈQUE / ${String(kinds.length).padStart(2, '0')}</span><h2>Les pièces<br>de la machine.</h2><div class="component-list">${kinds.map((kind, i) => `<button data-kind="${kind}"><span>${String(i + 1).padStart(2, '0')}</span>${titles[kind]}<b>↗</b></button>`).join('')}</div><div class="studio-note"><span class="status-dot"></span> DESIGN EN COURS<p>Explorez les formes et les matières. Ces propositions restent ouvertes à l’itération.</p></div></aside>
       <main class="studio-main"><div class="object-heading"><span class="studio-eyebrow">ÉTUDE DE COMPOSANT</span><h1 id="component-title"></h1><p id="component-description"></p></div><div id="studio-viewport"></div><div class="view-tools"><button id="frame-object">Recentrer</button><button id="auto-orbit" aria-pressed="false">Rotation auto</button><select id="lighting" aria-label="Éclairage"><option value="studio">Éclairage studio</option><option value="game">Éclairage jeu</option></select><label>Lumière<input id="light-power" type="range" min="0.2" max="3" step="0.1" value="1"></label></div><div class="studio-state"><span class="studio-eyebrow">ÉTATS</span><div id="state-buttons"></div><label id="charge-control">Charge<input id="component-charge" type="range" min="0" max="1" step="0.01" value="0.65"></label><span id="state-readout" aria-live="polite">Idle</span></div><footer class="viewport-help">GLISSER POUR ORBITER · MOLETTE POUR ZOOMER · CLIC DROIT POUR DÉPLACER</footer></main>
       <aside class="studio-inspector"><header><span class="studio-eyebrow">PARAMÈTRES</span><h2>Forme & matière</h2></header><div id="component-params"></div><section class="preset-actions"><button id="apply-preset" class="primary">Appliquer au jeu & à l’éditeur</button><div><button id="reset-component">Réinitialiser</button><button id="export-preset">Exporter JSON</button></div><button id="import-preset">Importer un preset</button><input id="preset-file" type="file" accept=".json,application/json" hidden><p id="preset-status" role="status">Preset partagé chargé. Les modifications restent en aperçu jusqu’à leur application.</p></section></aside>`;
     const host = this.element('studio-viewport'); host.append(this.viewport); this.viewport.append(this.renderer.domElement);
@@ -72,7 +73,7 @@ export class Showroom {
     this.element('lighting').onchange = () => this.light(); this.element('light-power').oninput = () => this.light();
     this.element('component-charge').oninput = event => { this.amount = Number((event.target as HTMLInputElement).value); this.setState('Activate'); };
     this.element('apply-preset').onclick = () => {
-      try { this.storeCurrent(); localStorage.setItem(STORAGE_KEY, JSON.stringify(this.presets)); this.dirty = false; this.status('Preset appliqué : le jeu et l’éditeur le chargeront à leur ouverture.'); }
+      try { this.storeCurrent(); localStorage.setItem(STORAGE_KEY, JSON.stringify(this.presets)); this.dirty = false; this.status(this.kind === 'tube' ? 'Style appliqué aux nouveaux tubes. Dans le Lab, utiliser Reprendre le style du Studio pour un tube existant.' : 'Preset appliqué : le jeu et l’éditeur le chargeront à leur ouverture.'); }
       catch { this.status('Sauvegarde locale indisponible. Exportez le JSON pour conserver vos réglages.'); }
     };
     this.element('reset-component').onclick = () => { this.params = resolveParams(this.kind, bundledPresets()); this.storeCurrent(); this.build(); this.fields(); this.markDirty(); };
@@ -98,13 +99,15 @@ export class Showroom {
     this.component.setState(this.state); this.component.setAmount(this.amount); this.stage.position.y = -this.component.size.y / 2 - 0.1;
     const radius = Math.max(this.component.size.x, this.component.size.z, 1) * 0.7;
     this.stage.scale.set(radius / 3.8, 1, radius / 3.8);
-    this.stage.position.x = this.kind === 'flipper' ? this.component.size.x * 0.32 : 0;
+    this.stage.position.x = this.kind === 'flipper' ? this.component.size.x * 0.32 : 0; this.stage.position.z = 0;
+    if (this.kind === 'tube') { const bounds = new THREE.Box3().setFromObject(this.component.root, true); const center = bounds.getCenter(new THREE.Vector3()); this.stage.position.set(center.x, bounds.min.y - 0.1, center.z); }
   }
   private fields(): void {
     const keys = (Object.keys(ranges) as (keyof typeof ranges)[]).filter(key =>
-      !(key === 'faceAngle' && this.kind !== 'slingshot') && !(key === 'taper' && this.kind !== 'flipper') && !(key === 'bevel' && ['ball', 'post', 'bumper'].includes(this.kind))
+      (!key.startsWith('tube') || this.kind === 'tube') && (this.kind !== 'tube' || !['width', 'height', 'depth', 'bevel', 'taper', 'faceAngle'].includes(key))
+      && !(key === 'faceAngle' && this.kind !== 'slingshot') && !(key === 'taper' && this.kind !== 'flipper') && !(key === 'bevel' && ['ball', 'post', 'bumper'].includes(this.kind))
       && !(key === 'depth' && ['ball', 'post', 'bumper'].includes(this.kind)) && !(key === 'height' && this.kind === 'ball'));
-    this.element('component-params').innerHTML = `<section><h3>GÉOMÉTRIE & FINITION</h3>${keys.map(key => `<label class="param-row" for="param-${key}"><span>${labels[key]}</span><output id="value-${key}">${this.params[key].toFixed(2)}</output><input id="param-${key}" data-param="${key}" type="range" min="${ranges[key][0]}" max="${ranges[key][1]}" step="${ranges[key][2]}" value="${this.params[key]}"></label>`).join('')}</section><section><h3>PALETTE</h3>${(['color', 'neon'] as const).map(key => `<label class="color-row">${labels[key]}<input aria-label="${labels[key]}" data-color="${key}" type="color" value="${this.params[key]}"></label>`).join('')}</section><p class="param-note">Dimensions en multiplicateurs. Les dimensions fonctionnelles sont aussi utilisées par les collisions du jeu.</p>`;
+    this.element('component-params').innerHTML = `<section><h3>GÉOMÉTRIE & FINITION</h3>${keys.map(key => `<label class="param-row" for="param-${key}"><span>${labels[key]}</span><output id="value-${key}">${this.params[key].toFixed(2)}</output><input id="param-${key}" data-param="${key}" type="range" min="${ranges[key][0]}" max="${ranges[key][1]}" step="${ranges[key][2]}" value="${this.params[key]}"></label>`).join('')}</section><section><h3>PALETTE</h3>${(['color', 'neon'] as const).map(key => `<label class="color-row">${labels[key]}<input aria-label="${labels[key]}" data-color="${key}" type="color" value="${this.params[key]}"></label>`).join('')}</section><p class="param-note">${this.kind === 'tube' ? 'Diamètre et épaisseurs en unités du plateau. Chaque tube conserve son style dans le template ; le Lab permet de reprendre le style du Studio.' : 'Dimensions en multiplicateurs. Les dimensions fonctionnelles sont aussi utilisées par les collisions du jeu.'}</p>`;
     this.element('component-params').querySelectorAll<HTMLInputElement>('[data-param]').forEach(input => input.oninput = () => { const key = input.dataset.param as keyof typeof ranges; this.params[key] = Number(input.value); this.element(`value-${key}`).textContent = Number(input.value).toFixed(2); this.build(); this.markDirty(); });
     this.element('component-params').querySelectorAll<HTMLInputElement>('[data-color]').forEach(input => input.oninput = () => { this.params[input.dataset.color as 'color' | 'neon'] = input.value; this.build(); this.markDirty(); });
   }
@@ -128,6 +131,7 @@ export class Showroom {
     const targetX = this.kind === 'flipper' ? this.component.size.x * 0.32 : 0;
     this.controls.target.set(targetX, targetY, 0); this.camera.position.set(distance * 0.8 + targetX, distance * 0.55 + targetY, distance);
     if (this.kind === 'slingshot') this.camera.position.set(distance * 0.65, distance * 0.8, -distance).applyAxisAngle(new THREE.Vector3(0, 1, 0), -this.params.faceAngle);
+    if (this.kind === 'tube') { const center = new THREE.Box3().setFromObject(this.component.root, true).getCenter(new THREE.Vector3()); this.controls.target.copy(center); this.camera.position.copy(center).add(new THREE.Vector3(distance * 0.8, distance * 0.65, distance)); }
     this.controls.update();
   }
   private resize(): void { const bounds = this.element('studio-viewport').getBoundingClientRect(); this.renderer.setSize(bounds.width, bounds.height); this.camera.aspect = bounds.width / Math.max(bounds.height, 1); this.camera.updateProjectionMatrix(); }

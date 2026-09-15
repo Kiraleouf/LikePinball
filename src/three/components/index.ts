@@ -2,25 +2,28 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PHYSICS_3D, flipperYaw, approachAngle } from '../../config/physics3d';
 import { resolveParams, type ComponentKind, type VisualParams } from './presets';
+import { createTube } from './tube';
 export * from './presets';
 
 export type VisualState = 'Idle' | 'Hit' | 'Activate';
 export interface Size { x: number; y: number; z: number }
 /** Resting collision face, in component-local coordinates. */
 export interface ActiveFace { start: THREE.Vector3; end: THREE.Vector3; normal: THREE.Vector3 }
-export type CollisionShape = { type: 'box'; half: Size } | { type: 'ball'; radius: number } | { type: 'cylinder'; radius: number; halfHeight: number } | { type: 'convex'; vertices: Float32Array };
-export interface ComponentOptions { params?: VisualParams; size?: Size; color?: number; side?: 'left' | 'right'; externalPose?: boolean }
+export type CollisionShape = { type: 'box'; half: Size } | { type: 'ball'; radius: number } | { type: 'cylinder'; radius: number; halfHeight: number } | { type: 'convex'; vertices: Float32Array } | { type: 'trimesh'; vertices: Float32Array; indices: Uint32Array };
+export interface ComponentOptions { params?: VisualParams; size?: Size; color?: number; side?: 'left' | 'right'; externalPose?: boolean; path?: readonly Size[] }
 export const baseSizes: Record<ComponentKind, Size> = {
   flipper: { x: 2.5, y: 0.48, z: 0.6 }, bumper: { x: 2, y: 1.2, z: 2 },
   post: { x: 0.4, y: 0.9, z: 0.4 }, ball: { x: 0.84, y: 0.84, z: 0.84 },
   rail: { x: 4, y: 0.64, z: 0.24 }, wall: { x: 3.3, y: 0.72, z: 0.6 },
   launcher: { x: 0.85, y: 0.72, z: 1.8 }, gate: { x: 1.5, y: 1, z: 0.36 },
   slingshot: { x: 2.2, y: 0.72, z: 1.7 },
+  tube: { x: 6, y: 3, z: 6 },
 };
 export const states: Record<ComponentKind, readonly VisualState[]> = {
   flipper: ['Idle', 'Hit', 'Activate'], bumper: ['Idle', 'Hit'], post: ['Idle'], ball: ['Idle', 'Hit'],
   rail: ['Idle', 'Hit'], wall: ['Idle', 'Hit'], launcher: ['Idle', 'Hit', 'Activate'], gate: ['Idle', 'Activate'],
   slingshot: ['Idle', 'Hit', 'Activate'],
+  tube: ['Idle'],
 };
 export function dimensions(kind: ComponentKind, params: VisualParams, size = baseSizes[kind]): Size {
   // Round bodies use one radial scale so their collider stays exactly round.
@@ -34,9 +37,11 @@ export function collisionShape(kind: ComponentKind, size: Size): CollisionShape 
 }
 export interface Component3D {
   root: THREE.Group; size: Size; collider: CollisionShape; activeFace?: ActiveFace;
+  tube?: { curve: THREE.Curve<THREE.Vector3>; radius: number };
   setState(state: VisualState): void; setAmount(amount: number): void; update(delta: number): void; dispose(): void;
 }
 export function createComponent(kind: ComponentKind, options: ComponentOptions = {}): Component3D {
+  if (kind === 'tube') return createTube(options.params ?? resolveParams(kind), options.path);
   const p = options.params ?? resolveParams(kind); const size = dimensions(kind, p, options.size);
   const { x: w, y: h, z: d } = size;
   const root = new THREE.Group(); root.name = kind; root.userData.componentKind = kind;
