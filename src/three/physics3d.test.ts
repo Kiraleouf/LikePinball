@@ -5,7 +5,7 @@ import { PHYSICS_3D, approachAngle, flipperYaw } from '../config/physics3d';
 import { createComponent } from './components';
 import { readInitialTemplate } from '../tables/initialTemplate';
 
-it('lets a ball descend between the right hub and the launcher wall', async () => {
+it('lets a ball descend through the freed right side of the playfield', async () => {
   await RAPIER.init(); const { world, rotation, point } = board(PHYSICS_3D.gravity, PHYSICS_3D.tilt);
   const visual = createComponent('flipper', { side: 'right', externalPose: true });
   if (visual.collider.type !== 'convex') throw new Error('Flipper hull required');
@@ -13,9 +13,9 @@ it('lets a ball descend between the right hub and the launcher wall', async () =
   const p = point((pivot.x - 360) / 45, 0.55, (pivot.y - 540) / 50);
   const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(p.x, p.y, p.z).setRotation(rotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), flipperYaw(-0.18)))));
   world.createCollider(RAPIER.ColliderDesc.convexHull(visual.collider.vertices)!, body);
-  const wp = point(4.05, 0.45, 3.7);
-  world.createCollider(RAPIER.ColliderDesc.cuboid(0.12, 0.62, 5.6), world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(wp.x, wp.y, wp.z).setRotation(rotation)));
-  const bp = point(3.48, 0.43, 5.6);
+  const wp = point(5.75, 0.42, 1.5);
+  world.createCollider(RAPIER.ColliderDesc.cuboid(0.18, 0.65, 8.5), world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(wp.x, wp.y, wp.z).setRotation(rotation)));
+  const bp = point(4.75, 0.43, 5.6);
   const ball = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(bp.x, bp.y, bp.z).setCcdEnabled(true));
   world.createCollider(RAPIER.ColliderDesc.ball(0.42).setFriction(PHYSICS_3D.ballFriction), ball);
   for (let i = 0; i < 360; i++) world.step();

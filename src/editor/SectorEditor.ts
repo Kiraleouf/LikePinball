@@ -1,3 +1,4 @@
+import { LAUNCHER, launcherStructure, rightBoundary } from '../three/machine';
 import { createGameLighting } from '../three/components/lighting';
 import { flipperYaw } from '../config/physics3d';
 import { createComponent, readPresets, resolveParams, type Component3D } from '../three/components';
@@ -37,6 +38,7 @@ export class SectorEditor {
   private editingInitial = true;
   private metadata?: SectorTemplateMetadata;
   private readonly baseVisuals = new THREE.Group();
+  private readonly genericBoundary = new THREE.Group();
 
   public constructor(private readonly root: HTMLElement) {
     root.classList.add('editor-mode');
@@ -52,20 +54,25 @@ export class SectorEditor {
     const board = new THREE.Mesh(new THREE.BoxGeometry(12, 0.5, 20), new THREE.MeshStandardMaterial({ color: 0x071014, roughness: 0.76, metalness: 0.25 }));
     board.receiveShadow = true; board.position.y = -0.25; this.scene.add(board);
     const grid = new THREE.GridHelper(20, 20, CYAN, 0x123a44); grid.scale.x = 0.6; grid.position.y = 0.01; this.scene.add(grid);
-    this.addBoundary(-5.8); this.addBoundary(5.8);
+    this.addBoundary(-5.75); this.addBoundary(5.75, 0, 20, this.genericBoundary); this.scene.add(this.genericBoundary);
     this.addConnectionZone(-9.35, 'ENTRÉE HAUTE'); this.addConnectionZone(9.35, 'SORTIE BASSE');
-    this.camera.position.set(0, 22, 17); this.camera.lookAt(0, 0, 0);
+    this.camera.position.set(0.8, 23, 18); this.camera.lookAt(0.8, 0, 0);
     this.scene.add(this.baseVisuals);
     const fixed = (kind: Parameters<typeof createComponent>[0], x: number, y: number, z: number, size?: { x: number; y: number; z: number }): void => {
       const component = createComponent(kind, { params: resolveParams(kind, this.visualPresets), size });
       component.root.position.set(x, y, z); this.baseVisuals.add(component.root);
     };
-    fixed('wall', 4.05, 0.45, 3.7, { x: 0.24, y: 1.24, z: 11.2 });
-    fixed('launcher', 4.75, 0.62, 8.75); fixed('gate', 4.65, 0.45, 5.8);
-    const drain = new THREE.Mesh(new THREE.BoxGeometry(8, 0.04, 0.7), new THREE.MeshBasicMaterial({ color: 0xff3b78, transparent: true, opacity: 0.35 })); drain.position.set(0, 0.04, 9.5); this.baseVisuals.add(drain);
+    const right = rightBoundary(0); this.addBoundary(5.75, right.z, right.length, this.baseVisuals);
+    launcherStructure().forEach(box => {
+      if (box.name.startsWith('plateau-')) { const floor = new THREE.Mesh(new THREE.BoxGeometry(box.width, box.height, box.depth), new THREE.MeshStandardMaterial({ color: 0x071014, roughness: 0.76 })); floor.position.set(box.x, box.y, box.z); this.baseVisuals.add(floor); }
+      else { const component = createComponent('wall', { params: resolveParams('wall', this.visualPresets), size: { x: box.width, y: box.height, z: box.depth } }); component.root.position.set(box.x, box.y, box.z); component.root.rotation.y = box.yaw; this.baseVisuals.add(component.root); }
+    });
+    fixed('launcher', LAUNCHER.x, 0.62, LAUNCHER.plungerZ);
+    const gate = createComponent('gate', { params: resolveParams('gate', this.visualPresets), size: { x: LAUNCHER.gateLength, y: 1.5, z: 0.3 } }); gate.root.position.set(LAUNCHER.gateX, 0.6, LAUNCHER.gateZ); gate.root.rotation.y = Math.PI / 2; this.baseVisuals.add(gate.root);
+    const drain = new THREE.Mesh(new THREE.BoxGeometry(11, 0.04, 0.7), new THREE.MeshBasicMaterial({ color: 0xff3b78, transparent: true, opacity: 0.35 })); drain.position.set(0, 0.04, 9.5); this.baseVisuals.add(drain);
   }
 
-  private addBoundary(x: number): void { const wall = createComponent('wall', { params: resolveParams('wall', this.visualPresets), size: { x: 0.36, y: 1.3, z: 20 } }).root; wall.position.set(x, 0.5, 0); this.scene.add(wall); }
+  private addBoundary(x: number, z = 0, length = 20, parent: THREE.Object3D = this.scene): void { const wall = createComponent('wall', { params: resolveParams('wall', this.visualPresets), size: { x: 0.36, y: 1.3, z: length } }).root; wall.position.set(x, 0.42, z); parent.add(wall); }
   private addConnectionZone(z: number, name: string): void { const zone = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.04, 0.8), new THREE.MeshBasicMaterial({ color: 0x39ff9a, transparent: true, opacity: 0.3 })); zone.position.set(0, 0.04, z); zone.name = name; this.scene.add(zone); }
 
   private createPanel(): HTMLElement {
@@ -116,7 +123,7 @@ export class SectorEditor {
     const list = document.getElementById('element-list') as HTMLSelectElement;
     list.replaceChildren(new Option('Sélectionner…', ''), ...this.elements.map(element => new Option(`${element.kind} · ${element.id}`, element.id)));
     list.value = this.selectedId ?? '';
-    this.baseVisuals.visible = this.editingInitial;
+    this.baseVisuals.visible = this.editingInitial; this.genericBoundary.visible = !this.editingInitial;
     for (const element of this.elements) {
       const visual = this.createVisual(element); visual.userData.selected = element.id === this.selectedId;
       visual.traverse((object) => this.objectIds.set(object, element.id)); this.visuals.set(element.id, visual); this.scene.add(visual);
@@ -216,6 +223,7 @@ export class SectorEditor {
     const input = document.getElementById('sector-index') as HTMLInputElement;
     const sectorIndex = this.editingInitial ? 0 : input.value === '' ? undefined : input.valueAsNumber;
     if (input.validity.badInput || (sectorIndex !== undefined && (!Number.isSafeInteger(sectorIndex) || sectorIndex < 0))) throw new Error('L’index doit être un entier positif ou nul, ou rester vide.');
+    if (this.editingInitial && [...this.visuals.values()].some(visual => new THREE.Box3().setFromObject(visual).max.x > 5.57)) throw new Error('Un élément dépasse la limite droite du plateau. Replacer sa géométrie dans la zone jouable avant de sauvegarder.');
     const json = serializeTemplate(this.toSector(), { ...this.metadata, sectorIndex }); parseTemplate(json); return json;
   }
   private save(): void {

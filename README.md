@@ -179,3 +179,10 @@ Dans Sector Lab, **Nouveau** crée un template ; le champ **Index fixe** peut re
 L’index optionnel est stocké dans `metadata.sectorIndex` du JSON version 1. Tous les fichiers `src/tables/templates/*.sector.json` constituent le catalogue livré ; les sauvegardes locales le complètent ou remplacent un template de même `metadata.id`. Deux identités distinctes ne peuvent pas réserver le même index : la sauvegarde est refusée avec le nom du propriétaire actuel, sans modifier le catalogue. Les anciens layouts locaux du secteur 0 sont repris automatiquement.
 
 La run prend une copie du catalogue au départ. À chaque génération du secteur N, un template fixe N est utilisé tel quel, sans variations ni éléments optionnels supprimés. Sinon, le seed détermine la sélection pondérée et les variations du pool générique. Modifier le catalogue prend effet à la prochaine run ; exporter/importer conserve les métadonnées et permet de versionner le layout.
+
+
+### Couloir de lancement extérieur
+
+Le lanceur occupe un couloir structurel à droite de la largeur jouable. La bille part devant le piston, remonte réellement le couloir et suit le guide arrondi pour rejoindre le haut du secteur 0. La barrière anti-retour se ferme après le passage complet de la bille. Un lancement qui retombe dans le couloir est préparé à nouveau sans consommer de bille ; le drain reste dans la zone principale.
+
+`src/three/machine.ts` définit cette structure une seule fois pour le jeu et le contexte du Sector Lab. Aucun couloir n'est intégré aux templates. Toute la largeur du plateau est disponible pour les composants ; le Lab refuse la sauvegarde d'un élément du secteur 0 dépassant dans le couloir. La puissance reste réglée par la durée de maintien d'Espace.
