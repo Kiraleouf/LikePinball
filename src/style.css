@@ -30,3 +30,22 @@ canvas {
 canvas:focus {
   outline: none;
 }
+
+.hud {
+  position: fixed;
+  inset: 24px auto auto 24px;
+  display: grid;
+  gap: 7px;
+  color: #79aebb;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  pointer-events: none;
+  text-shadow: 0 0 12px rgba(53, 231, 255, 0.45);
+}
+
+.hud strong {
+  color: #e8fbff;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  margin-bottom: 4px;
+}

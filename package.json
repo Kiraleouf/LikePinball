@@ -10,9 +10,12 @@
     "build": "npm run typecheck && vite build"
   },
   "dependencies": {
-    "phaser": "^3.90.0"
+    "@dimforge/rapier3d-compat": "^0.20.0",
+    "phaser": "^3.90.0",
+    "three": "^0.186.0"
   },
   "devDependencies": {
+    "@types/three": "^0.186.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.5",
     "vitest": "^3.2.4"

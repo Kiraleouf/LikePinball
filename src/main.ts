@@ -1,30 +1,7 @@
-import Phaser from 'phaser';
 import './style.css';
-import { BACKGROUND_COLOR, GAME_HEIGHT, GAME_WIDTH } from './config/game';
-import { PHYSICS } from './config/physics';
-import { GameScene } from './scenes/GameScene';
+import { PinballPrototype } from './three/PinballPrototype';
 
-const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
-  parent: 'game',
-  width: GAME_WIDTH,
-  height: GAME_HEIGHT,
-  backgroundColor: BACKGROUND_COLOR,
-  physics: {
-    default: 'matter',
-    matter: {
-      gravity: { x: 0, y: PHYSICS.gravity },
-      positionIterations: 10,
-      velocityIterations: 8,
-      constraintIterations: 4,
-      enableSleeping: false,
-    },
-  },
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-  },
-  scene: [GameScene],
-};
+const root = document.querySelector<HTMLElement>('#game');
+if (!root) throw new Error('Conteneur #game absent');
 
-new Phaser.Game(config);
+void new PinballPrototype(root).start();
