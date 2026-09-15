@@ -5,12 +5,15 @@ import { MotionGuard } from '../physics/MotionGuard';
 
 export class BallController {
   public readonly image: Phaser.Physics.Matter.Image;
+  private readonly spawn: Point;
   private leftLauncher = false;
   private launched = false;
+  private leftRetryZone = false;
   private readonly motionGuard = new MotionGuard();
   private readonly trail: Phaser.GameObjects.Arc[];
 
   public constructor(scene: Phaser.Scene, spawn: Point, texture: string) {
+    this.spawn = spawn;
     this.image = scene.matter.add.image(spawn.x, spawn.y, texture);
     this.image.setCircle(PHYSICS.ball.radius);
     this.image.setBounce(PHYSICS.ball.restitution);
@@ -39,6 +42,8 @@ export class BallController {
       this.trail[index].setAlpha(this.launched ? (this.trail.length - index) * 0.022 : 0);
     }
     this.trail[0].setPosition(this.image.x, this.image.y).setAlpha(this.launched ? 0.16 : 0);
+
+    if (this.image.y < PHYSICS.launcher.retryZoneY) this.leftRetryZone = true;
 
     if (!this.leftLauncher && this.image.y < PHYSICS.launcher.exitHeight) {
       this.leftLauncher = true;
@@ -70,5 +75,22 @@ export class BallController {
 
   public get hasExitedLauncher(): boolean {
     return this.leftLauncher;
+  }
+
+  public get canRetryLaunch(): boolean {
+    const body = this.image.body;
+    return Boolean(
+      body && this.launched && this.leftRetryZone && !this.leftLauncher &&
+      this.image.y >= PHYSICS.launcher.retryZoneY && body.velocity.y >= 0,
+    );
+  }
+
+  public resetForRetry(): void {
+    this.image.setVelocity(0, 0);
+    this.image.setPosition(this.spawn.x, this.spawn.y);
+    this.image.setStatic(true);
+    this.launched = false;
+    this.leftRetryZone = false;
+    this.trail.forEach((dot) => dot.setPosition(this.spawn.x, this.spawn.y).setAlpha(0));
   }
 }

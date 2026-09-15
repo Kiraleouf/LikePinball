@@ -11,6 +11,12 @@ export class RunState {
     return true;
   }
 
+  public retryLaunch(): boolean {
+    if (this.phase !== 'playing') return false;
+    this.phase = 'ready';
+    return true;
+  }
+
   public loseBall(): void {
     if (this.phase !== 'playing') return;
 

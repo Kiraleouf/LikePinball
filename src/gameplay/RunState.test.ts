@@ -33,4 +33,15 @@ describe('RunState', () => {
 
     expect(run.ballsRemaining).toBe(2);
   });
+
+  it('réarme le lanceur sans consommer la bille après une tentative insuffisante', () => {
+    const run = new RunState(3);
+
+    run.launch();
+
+    expect(run.retryLaunch()).toBe(true);
+    expect(run.phase).toBe('ready');
+    expect(run.ballsRemaining).toBe(3);
+    expect(run.launch()).toBe(true);
+  });
 });

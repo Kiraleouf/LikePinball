@@ -85,6 +85,12 @@ export class GameScene extends Phaser.Scene {
 
   public update(time: number, delta: number): void {
     this.ball?.update(delta);
+    if (this.ball?.canRetryLaunch && this.run.retryLaunch()) {
+      this.ball.resetForRetry();
+      this.launchCharge.reset();
+      this.launchGauge?.update(0);
+      this.stateText?.setVisible(true);
+    }
     this.launchCharge.update(delta);
     this.launchGauge?.update(this.launchCharge.value);
     if (this.ball?.hasExitedLauncher) this.launcherGate?.closeAfterExit(this.ball.image.x);

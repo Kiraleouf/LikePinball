@@ -32,9 +32,10 @@ export const PHYSICS = {
     },
   },
   launcher: {
-    minVelocityY: -18,
+    minVelocityY: -10,
     maxVelocityY: -32,
     chargeCycleMs: 1_400,
+    retryZoneY: 910,
     exitHeight: 300,
     exitVelocityX: -9,
     gate: {
