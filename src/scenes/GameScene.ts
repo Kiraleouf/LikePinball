@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SECTOR_UNLOCK_SCORES, STARTING_BALLS } from '../config/game';
+import { CAMERA, SECTOR_UNLOCK_SCORES, STARTING_BALLS } from '../config/game';
 import { PHYSICS } from '../config/physics';
 import { BallController } from '../gameplay/BallController';
 import { BumperController } from '../gameplay/BumperController';
@@ -10,6 +10,7 @@ import { LauncherGateController } from '../gameplay/LauncherGateController';
 import { LaunchChargeState } from '../gameplay/LaunchChargeState';
 import { SectorGateController } from '../gameplay/SectorGateController';
 import { SectorUnlockState } from '../gameplay/SectorUnlockState';
+import { CameraSectorState } from '../gameplay/CameraSectorState';
 import { TableRenderer } from '../rendering/TableRenderer';
 import { LaunchGauge } from '../rendering/LaunchGauge';
 import { createRailSegments } from '../physics/railGeometry';
@@ -35,6 +36,7 @@ export class GameScene extends Phaser.Scene {
   private sectorGates?: SectorGateController;
   private sectorText?: Phaser.GameObjects.Text;
   private sectorUnlocks = new SectorUnlockState(SECTOR_UNLOCK_SCORES);
+  private cameraSector = new CameraSectorState(WORLD.sectors.length, CAMERA.sectorHeight, CAMERA.seamY, CAMERA.engagement);
 
   public constructor() {
     super('game');
@@ -44,6 +46,7 @@ export class GameScene extends Phaser.Scene {
     this.run = new RunState(STARTING_BALLS);
     this.score = new ScoreState();
     this.sectorUnlocks = new SectorUnlockState(SECTOR_UNLOCK_SCORES);
+    this.cameraSector = new CameraSectorState(WORLD.sectors.length, CAMERA.sectorHeight, CAMERA.seamY, CAMERA.engagement);
     this.bumpers.clear();
   }
 
@@ -73,6 +76,10 @@ export class GameScene extends Phaser.Scene {
 
   public update(time: number, delta: number): void {
     this.ball?.update(delta);
+    if (this.ball) {
+      const sector = this.cameraSector.update(this.ball.image.y);
+      if (sector !== undefined) this.transitionCameraTo(sector);
+    }
     if (this.ball?.canRetryLaunch && this.run.retryLaunch()) {
       this.ball.resetForRetry();
       this.launchCharge.reset();
@@ -90,27 +97,27 @@ export class GameScene extends Phaser.Scene {
   private createHud(): void {
     this.scoreText = this.add.text(108, 124, `SCORE  ${this.score.value.toLocaleString('fr-FR')}`, {
       color: '#35e7ff', fontFamily: 'monospace', fontSize: '22px', fontStyle: 'bold', letterSpacing: 2,
-    }).setDepth(4);
+    }).setDepth(4).setScrollFactor(0);
 
     this.add.text(108, 92, 'MONDE VERTICAL', {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', letterSpacing: 3,
-    }).setDepth(4);
+    }).setDepth(4).setScrollFactor(0);
 
     this.sectorText = this.add.text(108, 153, this.sectorProgressLabel(), {
       color: '#79aebb', fontFamily: 'monospace', fontSize: '12px', letterSpacing: 1,
-    }).setDepth(4);
+    }).setDepth(4).setScrollFactor(0);
 
     this.ballsText = this.add.text(612, 92, `BILLES  ${this.run.ballsRemaining}`, {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', letterSpacing: 2,
-    }).setOrigin(1, 0).setDepth(4);
+    }).setOrigin(1, 0).setDepth(4).setScrollFactor(0);
 
     this.stateText = this.add.text(585, 865, 'MAINTENIR\nESPACE', {
       align: 'center', color: '#35e7ff', fontFamily: 'monospace', fontSize: '13px', letterSpacing: 2,
-    }).setOrigin(0.5).setDepth(4);
+    }).setOrigin(0.5).setDepth(4).setScrollFactor(0);
 
     this.add.text(360, 1020, '← / Q  GAUCHE     → / D  DROIT     ESPACE  CHARGER', {
       color: '#79aebb', fontFamily: 'monospace', fontSize: '12px', letterSpacing: 1,
-    }).setOrigin(0.5).setDepth(4);
+    }).setOrigin(0.5).setDepth(4).setScrollFactor(0);
   }
 
   private createControls(): void {
@@ -250,6 +257,15 @@ export class GameScene extends Phaser.Scene {
     return next === undefined
       ? 'TOUS SECTEURS OUVERTS'
       : `SECTEUR ${this.sectorUnlocks.highestAccessibleSector + 1}  ${next.toLocaleString('fr-FR')} PTS`;
+  }
+
+  private transitionCameraTo(sector: number): void {
+    this.tweens.add({
+      targets: this.cameras.main,
+      scrollY: -sector * CAMERA.sectorHeight,
+      duration: CAMERA.transitionMs,
+      ease: 'Sine.easeInOut',
+    });
   }
 
 }

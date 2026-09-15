@@ -11,3 +11,10 @@ export const COLORS = {
 
 export const STARTING_BALLS = 3;
 export const SECTOR_UNLOCK_SCORES = [10_000, 50_000, 100_000] as const;
+
+export const CAMERA = {
+  sectorHeight: 1_000,
+  seamY: 80,
+  engagement: 160,
+  transitionMs: 280,
+} as const;
