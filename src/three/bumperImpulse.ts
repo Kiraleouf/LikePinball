@@ -5,7 +5,12 @@ interface Vector { readonly x: number; readonly y: number; readonly z: number }
 export function bumperImpulse(position: Vector, center: Vector, velocity: Vector, boardNormal: Vector, mass: number, power: number = PHYSICS_3D.bumperKickSpeed): Vector {
   const dx = position.x - center.x; const dy = position.y - center.y; const dz = position.z - center.z;
   const normalDistance = dx * boardNormal.x + dy * boardNormal.y + dz * boardNormal.z;
-  let x = dx - normalDistance * boardNormal.x; let y = dy - normalDistance * boardNormal.y; let z = dz - normalDistance * boardNormal.z;
+  return directionalImpulse({ x: dx - normalDistance * boardNormal.x, y: dy - normalDistance * boardNormal.y, z: dz - normalDistance * boardNormal.z }, velocity, mass, power);
+}
+
+/** Add momentum along a surface normal without rotating existing tangential motion. */
+export function directionalImpulse(direction: Vector, velocity: Vector, mass: number, power: number): Vector {
+  let { x, y, z } = direction;
   const length = Math.hypot(x, y, z);
   if (length < 1e-6 || mass <= 0) return { x: 0, y: 0, z: 0 };
   x /= length; y /= length; z /= length;

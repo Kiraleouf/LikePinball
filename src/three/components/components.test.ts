@@ -49,7 +49,7 @@ describe('shared component library', () => {
 describe('versioned visual presets', () => {
   it('exports explicit defaults for unvisited components', () => {
     const file = parsePresets(serializePresets({ version: 1, components: {} }));
-    expect(Object.keys(file.components)).toHaveLength(8);
+    expect(Object.keys(file.components)).toHaveLength(kinds.length);
     expect(file.components.ball?.color).toBe('#d6e5ed');
   });
   it('round trips a complete catalogue and resolves identical values for all consumers', () => {

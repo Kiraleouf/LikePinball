@@ -46,7 +46,8 @@ function isSector(value: unknown): boolean {
     && array('bumpers', v => identified(v) && point(v) && positive(v.radius) && positive(v.score) && finite(v.color))
     && array('rails', v => identified(v) && positive(v.thickness) && finite(v.color) && Array.isArray(v.points) && v.points.length >= 2 && v.points.every(point) && v.points.slice(1).every((p, i) => { const a = v.points as { x: number; y: number }[]; return p.x !== a[i].x || p.y !== a[i].y; }))
     && array('flippers', v => identified(v) && point(v) && ['left', 'right'].includes(String(v.side)) && finite(v.restAngle) && finite(v.activeAngle))
-    && (value.posts === undefined || array('posts', v => identified(v) && point(v) && positive(v.radius)));
+    && (value.posts === undefined || array('posts', v => identified(v) && point(v) && positive(v.radius)))
+    && (value.slingshots === undefined || array('slingshots', v => identified(v) && point(v) && finite(v.angle)));
 }
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);

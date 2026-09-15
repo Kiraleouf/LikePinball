@@ -3,7 +3,7 @@ import { createGameLighting } from '../three/components/lighting';
 import { flipperYaw } from '../config/physics3d';
 import { createComponent, readPresets, resolveParams, type Component3D } from '../three/components';
 import * as THREE from 'three';
-import type { BumperDefinition, FlipperDefinition, PostDefinition, RailDefinition, SectorDefinition, WallDefinition } from '../tables/types';
+import type { BumperDefinition, FlipperDefinition, PostDefinition, SlingshotDefinition, RailDefinition, SectorDefinition, WallDefinition } from '../tables/types';
 import { parseTemplate, serializeTemplate, type SectorTemplateMetadata } from './template';
 import { readInitialTemplate } from '../tables/initialTemplate';
 import { readTemplateCatalogue, saveTemplate, removeCustomTemplate } from '../tables/templateCatalogue';
@@ -13,6 +13,7 @@ type EditableElement =
   | ({ readonly kind: 'flipper' } & FlipperDefinition)
   | ({ readonly kind: 'obstacle' } & WallDefinition & { readonly id: string })
   | ({ readonly kind: 'wall' } & WallDefinition & { readonly id: string })
+  | ({ readonly kind: 'slingshot' } & SlingshotDefinition)
   | ({ readonly kind: 'post' } & PostDefinition)
   | ({ readonly kind: 'rail' } & RailDefinition);
 
@@ -79,7 +80,7 @@ export class SectorEditor {
     const panel = document.createElement('aside'); panel.className = 'editor-panel';
     panel.innerHTML = `<header><span>LIKEPINBALL</span><strong>SECTOR LAB</strong><a href="/?showroom=1">STUDIO</a><a href="/">QUITTER</a></header>
       <section><label>TEMPLATE ACTIF<select id="template-list"></select></label><button id="open-initial">OUVRIR LE SECTEUR 0</button><label>NOM DU TEMPLATE<input id="template-name" value="Nouveau secteur"></label><label>INDEX FIXE (VIDE = GÉNÉRIQUE)<input id="sector-index" type="number" min="0" step="1" placeholder="Générique"></label><p id="template-context"></p></section>
-      <section><span class="panel-label">AJOUTER</span><div class="tool-grid"><button data-add="bumper">BUMPER</button><button data-add="flipper">FLIPPER</button><button data-add="post">POST</button><button data-add="wall">MUR</button><button data-add="obstacle">OBSTACLE</button><button data-add="rail">RAIL</button></div><label>ÉLÉMENT<select id="element-list"></select></label></section>
+      <section><span class="panel-label">AJOUTER</span><div class="tool-grid"><button data-add="bumper">BUMPER</button><button data-add="flipper">FLIPPER</button><button data-add="post">POST</button><button data-add="slingshot">SLINGSHOT</button><button data-add="wall">MUR</button><button data-add="obstacle">OBSTACLE</button><button data-add="rail">RAIL</button></div><label>ÉLÉMENT<select id="element-list"></select></label></section>
       <section id="properties"><span class="panel-label">PROPRIÉTÉS</span><p>Sélectionne un élément sur le plateau.</p></section>
       <section class="editor-actions"><button id="apply-initial" class="primary">SAUVEGARDER POUR LES RUNS</button><button id="remove-template">RETIRER DES RUNS</button><button id="new-template">NOUVEAU</button><button id="load-template">CHARGER</button><button id="save-template">EXPORTER JSON</button><button id="test-template">TESTER LE SECTEUR</button><input id="template-file" type="file" accept="application/json,.json" hidden><p role="status" id="editor-status"></p></section>
       <footer><span class="connection-key"></span> ZONES DE CONNEXION · SNAP 20 PX</footer>`;
@@ -110,6 +111,7 @@ export class SectorEditor {
     if (kind === 'bumper') this.elements.push({ kind, id, x: 360, y: 500, radius: 48, score: 1_250, color: CYAN });
     if (kind === 'flipper') this.elements.push({ kind, id, x: 360, y: 720, side: 'left', restAngle: 0, activeAngle: -0.65 });
     if (kind === 'obstacle' || kind === 'wall') this.elements.push({ kind, id, x: 360, y: 500, width: 150, height: 24, angle: 0 });
+    if (kind === 'slingshot') this.elements.push({ kind, id, x: 360, y: 700, angle: 0 });
     if (kind === 'post') this.elements.push({ kind, id, x: 360, y: 700, radius: 11 });
     if (kind === 'rail') this.elements.push({ kind, id, points: [{ x: 280, y: 500 }, { x: 440, y: 500 }], thickness: 12, color: PINK });
     this.selectedId = id; this.rebuild(); this.showProperties();
@@ -141,6 +143,8 @@ export class SectorEditor {
       const diameter = element.radius * 2 / 45; add('post', { size: { x: diameter, y: 0.9, z: diameter } }); group.position.copy(this.worldPoint(element.x, element.y, 0.45));
     } else if (element.kind === 'bumper') {
       const radius = element.radius / 48; add('bumper', { size: { x: radius * 2, y: 1.2, z: radius * 2 } }); group.position.copy(this.worldPoint(element.x, element.y, 0.62));
+    } else if (element.kind === 'slingshot') {
+      const sling = add('slingshot'); group.rotation.y = -element.angle; group.position.copy(this.worldPoint(element.x, element.y, 0.36)); sling.name = element.id;
     } else if (element.kind === 'flipper') {
       add('flipper', { side: element.side, externalPose: true }); group.rotation.y = flipperYaw(element.restAngle); group.position.copy(this.worldPoint(element.x, element.y, 0.55));
     } else if (element.kind === 'obstacle' || element.kind === 'wall') {
@@ -163,8 +167,8 @@ export class SectorEditor {
     const host = document.getElementById('properties'); const element = this.elements.find(({ id }) => id === this.selectedId); if (!host) return;
     if (!element) { host.innerHTML = '<span class="panel-label">PROPRIÉTÉS</span><p>Sélectionne un élément sur le plateau ou dans la liste.</p>'; return; }
     const point = element.kind === 'rail' ? element.points[0] : element;
-    const angle = element.kind === 'flipper' ? element.restAngle : element.kind === 'obstacle' || element.kind === 'wall' ? element.angle ?? 0 : element.kind === 'rail' ? Math.atan2((element.points[1].y - point.y) / 50, (element.points[1].x - point.x) / 45) : undefined;
-    host.innerHTML = `<span class="panel-label"></span><p>${element.kind === 'flipper' ? 'X / Y = centre du pivot. Angle en radians ; la course de frappe est conservée.' : 'Position en pixels du template. Angle en radians.'}</p><div class="property-grid"><label>X<input id="prop-x" type="number" step="0.25" value="${point.x}"></label><label>Y<input id="prop-y" type="number" step="0.25" value="${point.y}"></label>${angle === undefined ? '' : `<label>ANGLE<input id="prop-angle" type="number" step="0.05" value="${angle}"></label>`}${element.kind === 'flipper' ? '<label>CÔTÉ<select id="prop-side"><option value="left">Gauche</option><option value="right">Droite</option></select></label>' : ''}</div><button id="delete-element" class="danger">SUPPRIMER</button>`;
+    const angle = element.kind === 'flipper' ? element.restAngle : element.kind === 'obstacle' || element.kind === 'wall' || element.kind === 'slingshot' ? element.angle ?? 0 : element.kind === 'rail' ? Math.atan2((element.points[1].y - point.y) / 50, (element.points[1].x - point.x) / 45) : undefined;
+    host.innerHTML = `<span class="panel-label"></span><p>${element.kind === 'flipper' ? 'X / Y = centre du pivot. Angle en radians ; la course de frappe est conservée.' : element.kind === 'slingshot' ? 'La bande néon indique la face active. Angle en radians, ajouté à l’orientation du preset Studio.' : 'Position en pixels du template. Angle en radians.'}</p><div class="property-grid"><label>X<input id="prop-x" type="number" step="0.25" value="${point.x}"></label><label>Y<input id="prop-y" type="number" step="0.25" value="${point.y}"></label>${angle === undefined ? '' : `<label>ANGLE<input id="prop-angle" type="number" step="0.05" value="${angle}"></label>`}${element.kind === 'flipper' ? '<label>CÔTÉ<select id="prop-side"><option value="left">Gauche</option><option value="right">Droite</option></select></label>' : ''}</div><button id="delete-element" class="danger">SUPPRIMER</button>`;
     host.querySelector('.panel-label')!.textContent = `${element.kind.toUpperCase()} · ${element.id}`;
     const update = (): void => {
       const x = (host.querySelector('#prop-x') as HTMLInputElement).valueAsNumber; const y = (host.querySelector('#prop-y') as HTMLInputElement).valueAsNumber;
@@ -177,7 +181,7 @@ export class SectorEditor {
       this.elements = this.elements.map(item => {
         if (item.id !== element.id) return item;
         if (item.kind === 'flipper') return { ...item, restAngle: value, activeAngle: item.activeAngle + value - item.restAngle };
-        if (item.kind === 'wall' || item.kind === 'obstacle') return { ...item, angle: value };
+        if (item.kind === 'wall' || item.kind === 'obstacle' || item.kind === 'slingshot') return { ...item, angle: value };
         if (item.kind === 'rail') {
           const origin = item.points[0]; const delta = value - Math.atan2((item.points[1].y - origin.y) / 50, (item.points[1].x - origin.x) / 45);
           return { ...item, points: item.points.map(p => { const x = (p.x - origin.x) / 45; const y = (p.y - origin.y) / 50; return { x: origin.x + (x * Math.cos(delta) - y * Math.sin(delta)) * 45, y: origin.y + (x * Math.sin(delta) + y * Math.cos(delta)) * 50 }; }) };
@@ -245,6 +249,7 @@ export class SectorEditor {
       rails: this.elements.filter((item): item is Extract<EditableElement, { kind: 'rail' }> => item.kind === 'rail').map(({ kind: _, ...item }) => item),
       obstacles: this.elements.filter((item): item is Extract<EditableElement, { kind: 'obstacle' }> => item.kind === 'obstacle').map(({ kind: _, id: __, ...item }) => item),
       flippers: this.elements.filter((item): item is Extract<EditableElement, { kind: 'flipper' }> => item.kind === 'flipper').map(({ kind: _, ...item }) => item),
+      slingshots: this.elements.filter((item): item is Extract<EditableElement, { kind: 'slingshot' }> => item.kind === 'slingshot').map(({ kind: _, ...item }) => item),
       posts: this.elements.filter((item): item is Extract<EditableElement, { kind: 'post' }> => item.kind === 'post').map(({ kind: _, ...item }) => item),
     };
   }
@@ -253,6 +258,7 @@ export class SectorEditor {
     this.elements = [
       ...sector.bumpers.map(item => ({ kind: 'bumper' as const, ...item })),
       ...sector.flippers.map(item => ({ kind: 'flipper' as const, ...item })),
+      ...(sector.slingshots ?? []).map(item => ({ kind: 'slingshot' as const, ...item })),
       ...(sector.posts ?? []).map(item => ({ kind: 'post' as const, ...item })),
       ...sector.walls.map((item, index) => ({ ...item, kind: 'wall' as const, id: `wall-${index + 1}` })),
       ...sector.obstacles.map((item, index) => ({ ...item, kind: 'obstacle' as const, id: `obstacle-${index + 1}` })),

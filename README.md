@@ -15,7 +15,7 @@ npm run dev
 - Showroom : `/?showroom=1`
 - Éditeur de secteurs : `/?editor=1`
 
-Le **Component Studio** permet d’explorer huit composants avec une caméra orbitale, leurs états et des paramètres de forme/matière. Les premières propositions visuelles sont **provisoires** : le showroom sert à les faire évoluer.
+Le **Component Studio** permet d’explorer neuf composants avec une caméra orbitale, leurs états et des paramètres de forme/matière. Les premières propositions visuelles sont **provisoires** : le showroom sert à les faire évoluer.
 
 ### Une bibliothèque commune
 
@@ -167,7 +167,7 @@ Chaque issue doit rester limitée à son périmètre. Une issue n'est terminée 
 
 ### Secteur initial dans le Sector Lab
 
-`/?editor=1` ouvre le secteur 0 réellement utilisé par les nouvelles runs. Sélectionner un élément dans la liste ou sur le plateau, modifier X/Y et son angle, puis **Sauvegarder pour les runs**. Les coordonnées des flippers représentent leur pivot ; changer leur orientation conserve la course de frappe. Les flippers, post central, bumpers, rails, murs et obstacles sont éditables. Le lanceur, le drain (zone rose) et les limites structurelles restent fixes.
+`/?editor=1` ouvre le secteur 0 réellement utilisé par les nouvelles runs. Sélectionner un élément dans la liste ou sur le plateau, modifier X/Y et son angle, puis **Sauvegarder pour les runs**. Les coordonnées des flippers représentent leur pivot ; changer leur orientation conserve la course de frappe. Les flippers, post central, bumpers, slingshots, rails, murs et obstacles sont éditables. Le lanceur, le drain (zone rose) et les limites structurelles restent fixes.
 
 Le template versionné `src/tables/templates/initial-sector.sector.json` est la disposition initiale. La sauvegarde du catalogue local (`likepinball.template-catalogue.v1`) la remplace dans ce navigateur, y compris après rechargement du Lab. **Exporter JSON** permet de versionner le résultat dans ce fichier ; **Charger** restaure un export avec ses métadonnées. **Nouveau** crée un template libre et **Tester le secteur** lance un aperçu temporaire. Les composants 3D et les colliders proviennent toujours de la bibliothèque partagée.
 
@@ -192,3 +192,12 @@ Le lanceur occupe un couloir structurel à droite de la largeur jouable. La bill
 Chaque contact admissible applique une impulsion radiale depuis le centre du bumper vers la bille, projetée dans le plan incliné du plateau. La composante tangentielle est conservée ; aucune position n'est changée. `PHYSICS_3D.bumperKickSpeed` règle le supplément de vitesse (9 unités/s par défaut), `bumperRestitution` le rebond passif et `bumperCooldown` l'intervalle minimal entre deux activations du même bumper. L'impulsion est limitée par le plafond de vitesse global et proportionnelle à la masse de la bille.
 
 Impulsion, score et animation `Hit` partent du même événement physique ; le flash est actualisé avant le rendu. En développement seulement, `?physics-debug=1` affiche les vitesses avant/après le dernier contact pour vérifier le balancing. Ce diagnostic peut être combiné avec `editor-test=1` et n'est pas affiché dans le build de production.
+
+
+### Slingshots actifs
+
+Le slingshot partagé réunit un châssis triangulaire chanfreiné, trois ancrages mécaniques et une bande élastique lumineuse. Cette bande identifie la seule face active : ses contacts propulsent la bille vers l’extérieur et déclenchent simultanément la compression et le flash `Hit`. Les deux autres faces et le dessus restent passifs. Une frappe exige un nouveau contact après séparation, avec un délai minimal pour filtrer les contacts instables. `Activate` maintient la compression pour l’inspection dans le Studio.
+
+Le Studio règle dimensions, finition, couleurs et orientation de la face (radians). Le Lab ajoute une rotation libre propre à chaque instance ; ses X/Y et son angle sont conservés dans le tableau optionnel `sector.slingshots` des templates version 1. Les anciens fichiers restent compatibles. Le template initial fourni contient une paire au-dessus des flippers ; les layouts déjà sauvegardés localement restent prioritaires et peuvent recevoir cette paire avec la palette **Slingshot**.
+
+`PHYSICS_3D.slingshotKickSpeed` règle le supplément de vitesse (11 unités/s), `slingshotRestitution` le rebond passif et `slingshotCooldown` le délai minimal (0,12 s). Un unique volume convexe et sa face active proviennent de la factory ; l’impulsion respecte la masse, le plan du plateau et le plafond de vitesse global. Le diagnostic `?physics-debug=1` affiche aussi les frappes de slingshot.

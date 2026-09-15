@@ -48,6 +48,7 @@ function assembleSector(seed: string, id: number, templates: readonly SectorTemp
     rails: template.sector.rails.map((rail) => ({ ...rail, id: `s${id}-${rail.id}`, points: rail.points.map((point) => ({ ...point })) })),
     obstacles: template.sector.obstacles.map((obstacle, index) => varyObstacle(obstacle, index, template, random)),
     flippers,
+    slingshots: template.sector.slingshots?.filter(sling => enabled(sling.id)).map(sling => ({ ...sling, id: `s${id}-${sling.id}` })),
   };
 }
 

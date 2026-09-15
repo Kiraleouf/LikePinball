@@ -6,6 +6,8 @@ export * from './presets';
 
 export type VisualState = 'Idle' | 'Hit' | 'Activate';
 export interface Size { x: number; y: number; z: number }
+/** Resting collision face, in component-local coordinates. */
+export interface ActiveFace { start: THREE.Vector3; end: THREE.Vector3; normal: THREE.Vector3 }
 export type CollisionShape = { type: 'box'; half: Size } | { type: 'ball'; radius: number } | { type: 'cylinder'; radius: number; halfHeight: number } | { type: 'convex'; vertices: Float32Array };
 export interface ComponentOptions { params?: VisualParams; size?: Size; color?: number; side?: 'left' | 'right'; externalPose?: boolean }
 export const baseSizes: Record<ComponentKind, Size> = {
@@ -13,10 +15,12 @@ export const baseSizes: Record<ComponentKind, Size> = {
   post: { x: 0.4, y: 0.9, z: 0.4 }, ball: { x: 0.84, y: 0.84, z: 0.84 },
   rail: { x: 4, y: 0.64, z: 0.24 }, wall: { x: 3.3, y: 0.72, z: 0.6 },
   launcher: { x: 0.85, y: 0.72, z: 1.8 }, gate: { x: 1.5, y: 1, z: 0.36 },
+  slingshot: { x: 2.2, y: 0.72, z: 1.7 },
 };
 export const states: Record<ComponentKind, readonly VisualState[]> = {
   flipper: ['Idle', 'Hit', 'Activate'], bumper: ['Idle', 'Hit'], post: ['Idle'], ball: ['Idle', 'Hit'],
   rail: ['Idle', 'Hit'], wall: ['Idle', 'Hit'], launcher: ['Idle', 'Hit', 'Activate'], gate: ['Idle', 'Activate'],
+  slingshot: ['Idle', 'Hit', 'Activate'],
 };
 export function dimensions(kind: ComponentKind, params: VisualParams, size = baseSizes[kind]): Size {
   // Round bodies use one radial scale so their collider stays exactly round.
@@ -29,7 +33,7 @@ export function collisionShape(kind: ComponentKind, size: Size): CollisionShape 
   return { type: 'box', half: { x: size.x / 2, y: size.y / 2, z: size.z / 2 } };
 }
 export interface Component3D {
-  root: THREE.Group; size: Size; collider: CollisionShape;
+  root: THREE.Group; size: Size; collider: CollisionShape; activeFace?: ActiveFace;
   setState(state: VisualState): void; setAmount(amount: number): void; update(delta: number): void; dispose(): void;
 }
 export function createComponent(kind: ComponentKind, options: ComponentOptions = {}): Component3D {
@@ -43,6 +47,7 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
   const animated = new THREE.Group(); root.add(animated);
   let ballMaterial: THREE.MeshPhysicalMaterial | undefined;
   let collider = collisionShape(kind, size);
+  let activeFace: ActiveFace | undefined;
   function mesh(g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0, parent: THREE.Object3D = root): THREE.Mesh {
     const object = new THREE.Mesh(g, m); object.position.set(x, y, z); object.castShadow = true; object.receiveShadow = true; parent.add(object); return object;
   }
@@ -84,6 +89,39 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
     const point = new THREE.Vector3();
     for (let i = 0; i < positions.count; i++) { point.fromBufferAttribute(positions, i).applyMatrix4(paddle.matrixWorld); point.toArray(vertices, i * 3); }
     collider = { type: 'convex', vertices };
+  } else if (kind === 'slingshot') {
+    const assembly = new THREE.Group(); assembly.name = 'slingshot-assembly';
+    root.add(assembly); assembly.add(animated); animated.name = 'elastic-band';
+    assembly.rotation.y = -p.faceAngle;
+    const corners = [new THREE.Vector3(-w / 2, 0, -d / 2), new THREE.Vector3(w / 2, 0, -d / 2), new THREE.Vector3(0, 0, d / 2)];
+    const bevel = Math.min(p.bevel, h * 0.09);
+    // The beveled plates sit inside a single triangular collision envelope.
+    const plate = (scale: number, height: number, y: number, material: THREE.Material): void => {
+      const shape = new THREE.Shape();
+      corners.forEach((v, i) => i ? shape.lineTo(v.x * scale, -v.z * scale) : shape.moveTo(v.x * scale, -v.z * scale)); shape.closePath();
+      const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: bevel, bevelThickness: bevel });
+      geometry.rotateX(-Math.PI / 2); mesh(geometry, material, 0, y, 0, assembly);
+    };
+    plate(0.91, h * 0.15, -h * 0.43, trim);
+    plate(0.84, h * 0.49, -h * 0.26, metal);
+    plate(0.70, h * 0.055, h * 0.27, rubber);
+    for (const corner of corners) {
+      const post = new THREE.Group(); post.name = 'mechanical-post'; post.position.copy(corner).multiplyScalar(0.73); assembly.add(post);
+      const r = Math.min(w, d) * 0.07;
+      cylinder(r, r * 1.2, h * 0.73, trim, 0, post);
+      cylinder(r * 0.72, r * 0.72, h * 0.06, rubber, h * 0.40, post);
+      ring(r, r * 0.14, h * 0.37, neon, post);
+      const screw = mesh(new THREE.CylinderGeometry(r * 0.37, r * 0.37, h * 0.035, 6), trim, 0, h * 0.45, 0, post); screw.name = 'post-fastener';
+    }
+    box(w * 0.96, h * 0.36, d * 0.12, rubber, 0, h * 0.16, -d * 0.44, animated);
+    box(w * 0.82, h * 0.07, d * 0.025, neon, 0, h * 0.25, -d * 0.495, animated);
+    box(w * 0.82, h * 0.025, d * 0.04, neon, 0, h * 0.36, -d * 0.44, animated);
+    // A short actuator and its guide remain visible behind the elastic face.
+    box(w * 0.17, h * 0.16, d * 0.28, trim, 0, h * 0.12, -d * 0.20, assembly);
+    const vertices = new Float32Array(18);
+    corners.forEach((corner, i) => [-h / 2, h / 2].forEach((y, j) => corner.clone().setY(y).applyQuaternion(assembly.quaternion).toArray(vertices, (i * 2 + j) * 3)));
+    collider = { type: 'convex', vertices };
+    activeFace = { start: corners[0].clone().applyQuaternion(assembly.quaternion), end: corners[1].clone().applyQuaternion(assembly.quaternion), normal: new THREE.Vector3(0, 0, -1).applyQuaternion(assembly.quaternion) };
   } else if (kind === 'ball') {
     ballMaterial = new THREE.MeshPhysicalMaterial({ color: p.color, metalness: p.metalness, roughness: p.roughness, clearcoat: 1, emissive: p.neon, emissiveIntensity: p.emissiveIntensity * 0.06 });
     mesh(new THREE.SphereGeometry(w / 2, 48, 32), ballMaterial);
@@ -114,7 +152,7 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
   }
   let state: VisualState = 'Idle'; let elapsed = 0; let amount = 0;
   let flipperAngle = 0.18;
-  return { root, size, collider,
+  return { root, size, collider, activeFace,
     setState(value) { if (!states[kind].includes(value) || (state === value && value !== 'Hit')) return; state = value; elapsed = 0; },
     setAmount(value) { amount = THREE.MathUtils.clamp(value, 0, 1); },
     update(delta) {
@@ -125,6 +163,7 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
       // In the game Rapier supplies the root pose; the showroom previews the same rest/active angles.
       if (kind === 'flipper' && !options.externalPose) { flipperAngle = approachAngle(flipperAngle, state === 'Activate' ? -0.62 : 0.18, state === 'Activate' ? PHYSICS_3D.flipperAngularSpeed : PHYSICS_3D.flipperReturnSpeed, delta); root.rotation.y = flipperYaw(flipperAngle) * (options.side === 'right' ? -1 : 1); }
       if (kind === 'bumper') animated.position.y = -pulse * h * 0.12;
+      if (kind === 'slingshot') { const compression = state === 'Activate' ? 1 : pulse; animated.position.z = compression * d * 0.07; neon.emissiveIntensity = p.emissiveIntensity * (1 + compression * 1.8); }
       if (kind === 'launcher') animated.position.z = (state === 'Activate' ? amount : 0) * d * 0.22 - pulse * d * 0.08;
       if (kind === 'gate') animated.rotation.z = THREE.MathUtils.damp(animated.rotation.z, state === 'Activate' ? Math.PI / 2 : 0, 18, delta);
       if (state === 'Hit' && elapsed >= 0.35) state = 'Idle';

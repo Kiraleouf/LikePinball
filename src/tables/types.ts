@@ -16,12 +16,14 @@ export interface SectorDefinition {
   readonly obstacles: readonly WallDefinition[];
   readonly flippers: readonly FlipperDefinition[];
   readonly posts?: readonly PostDefinition[];
+  readonly slingshots?: readonly SlingshotDefinition[];
 }
 
 export interface BumperDefinition extends Point { readonly id: string; readonly radius: number; readonly score: number; readonly color: number }
 export interface Point { readonly x: number; readonly y: number }
 export interface CircleDefinition extends Point { readonly radius: number }
 export interface PostDefinition extends CircleDefinition { readonly id: string }
+export interface SlingshotDefinition extends Point { readonly id: string; readonly angle: number }
 export interface RectangleDefinition extends Point { readonly width: number; readonly height: number }
 export interface WallDefinition extends RectangleDefinition { readonly angle?: number }
 export interface FlipperDefinition extends Point {

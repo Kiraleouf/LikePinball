@@ -1,4 +1,5 @@
-import { bumperImpulse } from './bumperImpulse';
+import { bumperImpulse, directionalImpulse } from './bumperImpulse';
+import { SlingshotContact } from './slingshotContact';
 import { LAUNCHER, launcherStructure, rightBoundary, hasExitedLauncher } from './machine';
 import { createGameLighting } from './components/lighting';
 import { PHYSICS_3D, approachAngle, flipperYaw } from '../config/physics3d';
@@ -14,7 +15,7 @@ import { sectorUnlockScore, STARTING_BALLS } from '../config/game';
 import { parseTemplate } from '../editor/template';
 import { createRunSeed, generateSector, generateWorld } from '../tables';
 import { readTemplateCatalogue } from '../tables/templateCatalogue';
-import type { FlipperDefinition, Point, PostDefinition, SectorDefinition, WallDefinition } from '../tables/types';
+import type { FlipperDefinition, Point, PostDefinition, SlingshotDefinition, SectorDefinition, WallDefinition } from '../tables/types';
 
 interface PhysicsMesh { readonly body: RAPIER.RigidBody; readonly mesh: THREE.Object3D; readonly visual?: Component3D }
 interface Flipper3D { readonly body: RAPIER.RigidBody; readonly visual: Component3D; readonly side: 'left' | 'right'; readonly rest: number; readonly active: number; angle: number }
@@ -49,6 +50,8 @@ export class PinballPrototype {
   private physicsTime = 0;
   private incomingSpeed = 0;
   private bumperHitCount = 0;
+  private slingshotHitCount = 0;
+  private readonly slingshots: { collider: RAPIER.Collider; visual: Component3D; normal: THREE.Vector3; contact: SlingshotContact }[] = [];
   private readonly physicsDebug = import.meta.env.DEV && new URLSearchParams(location.search).has('physics-debug');
   private readonly boardNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(this.boardRotation);
   private readonly sectorGates = new Map<number, PhysicsMesh>();
@@ -126,6 +129,7 @@ export class PinballPrototype {
     sector.flippers.forEach((flipper) => this.addGeneratedFlipper(sector.id, flipper));
     sector.walls.forEach((wall) => this.addFixedBox('editable-wall', this.mapX(wall.x), this.mapZ(sector.id, wall.y), 0.36, wall.width / 90, wall.height / 100, 0.36, CYAN, -(wall.angle ?? 0)));
     sector.posts?.forEach((post) => this.addPlayablePost(sector.id, post));
+    sector.slingshots?.forEach(sling => this.addSlingshot(sector.id, sling));
     this.addSectorGate(sector.id);
   }
 
@@ -168,6 +172,31 @@ export class PinballPrototype {
     this.bumpers.set(collider.handle, { score: definition.score, center: position, visual, nextHitAt: 0 });
     const mesh = visual.root; this.hitVisuals.set(collider.handle, visual);
     mesh.position.copy(position); mesh.quaternion.copy(this.boardRotation); this.scene.add(mesh);
+  }
+
+  private addSlingshot(sector: number, definition: SlingshotDefinition): void {
+    const visual = this.component('slingshot');
+    const position = this.onBoard(this.mapX(definition.x), this.mapZ(sector, definition.y), 0.36);
+    const rotation = this.flipperRotation(definition.angle);
+    const world = this.requireWorld();
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(rotation));
+    const collider = world.createCollider(this.collider(visual).setRestitution(PHYSICS_3D.slingshotRestitution), body);
+    this.slingshots.push({ collider, visual, normal: visual.activeFace!.normal.clone().applyQuaternion(rotation), contact: new SlingshotContact() });
+    visual.root.position.copy(position); visual.root.quaternion.copy(rotation); visual.root.name = definition.id; this.scene.add(visual.root);
+  }
+
+  private updateSlingshots(): void {
+    const ball = this.ball; const ballCollider = this.ballCollider;
+    if (!ball || !ballCollider || this.run.phase !== 'playing') return;
+    for (const sling of this.slingshots) {
+      if (!sling.contact.update(this.requireWorld(), sling.collider, ballCollider, sling.visual.activeFace!, this.physicsTime)) continue;
+      ball.applyImpulse(directionalImpulse(sling.normal, ball.linvel(), ball.mass(), PHYSICS_3D.slingshotKickSpeed), true);
+      sling.visual.setState('Hit'); this.ballVisual?.setState('Hit');
+      if (this.physicsDebug) {
+        const v = ball.linvel();
+        this.setText('physics-debug', `Slingshot ${++this.slingshotHitCount} · entrée ${this.incomingSpeed.toFixed(1)} → sortie ${Math.hypot(v.x, v.y, v.z).toFixed(1)} u/s`);
+      }
+    }
   }
 
   private addGuide(sector: number, from: Point, to: Point, thickness: number, color: number): void {
@@ -237,7 +266,7 @@ export class PinballPrototype {
     const c = component.collider;
     if (c.type === 'ball') return RAPIER.ColliderDesc.ball(c.radius);
     if (c.type === 'cylinder') return RAPIER.ColliderDesc.cylinder(c.halfHeight, c.radius);
-    if (c.type === 'convex') { const hull = RAPIER.ColliderDesc.convexHull(c.vertices); if (!hull) throw new Error('Géométrie convexe de flipper invalide'); return hull; }
+    if (c.type === 'convex') { const hull = RAPIER.ColliderDesc.convexHull(c.vertices); if (!hull) throw new Error('Géométrie convexe de composant invalide'); return hull; }
     return RAPIER.ColliderDesc.cuboid(c.half.x, c.half.y, c.half.z);
   }
 
@@ -259,7 +288,7 @@ export class PinballPrototype {
     });
       this.physicsTime += PHYSICS_3D.timestep;
       if (this.physicsDebug && this.ball) { const v = this.ball.linvel(); this.incomingSpeed = Math.hypot(v.x, v.y, v.z); }
-      world.step(this.eventQueue); this.handleCollisions(); this.updateLauncher();
+      world.step(this.eventQueue); this.handleCollisions(); this.updateSlingshots(); this.updateLauncher();
       if (this.ball) { const velocity = this.ball.linvel(); const speed = Math.hypot(velocity.x, velocity.y, velocity.z); if (speed > PHYSICS_3D.maxBallSpeed) { const scale = PHYSICS_3D.maxBallSpeed / speed; this.ball.setLinvel({ x: velocity.x * scale, y: velocity.y * scale, z: velocity.z * scale }, true); } }
       this.accumulator -= PHYSICS_3D.timestep;
     }
@@ -397,7 +426,7 @@ export class PinballPrototype {
       <div class="launcher-panel"><div><span>LANCEUR</span><strong id="charge">PRÊT</strong></div><i><b id="power-fill"></b></i></div>
       <footer><kbd>Q</kbd><kbd>←</kbd> GAUCHE <kbd>D</kbd><kbd>→</kbd> DROITE <kbd>ESPACE</kbd> LANCER</footer>
     </aside><div class="run-overlay" id="run-overlay"><div class="run-card"><span class="eyebrow">ASCENSION // 3D</span><h1>LIKE<span>PINBALL</span></h1><p>Monte, marque et ouvre la voie vers les secteurs supérieurs.</p><button id="start-run">LANCER LA RUN</button><small>ESPACE OU ENTRÉE</small></div></div>`;
-    if (this.physicsDebug) { const output = document.createElement('output'); output.id = 'physics-debug'; output.style.cssText = 'position:absolute;bottom:12px;right:18px;color:#fff;background:#071014;padding:8px;font:12px monospace'; output.textContent = 'Diagnostic bumpers · en attente d’un impact'; ui.append(output); }
+    if (this.physicsDebug) { const output = document.createElement('output'); output.id = 'physics-debug'; output.style.cssText = 'position:absolute;bottom:12px;right:18px;color:#fff;background:#071014;padding:8px;font:12px monospace'; output.textContent = 'Diagnostic impacts · en attente d’un impact'; ui.append(output); }
     const editorLink = document.createElement('a'); editorLink.className = 'editor-link'; editorLink.href = '/?editor=1'; editorLink.textContent = 'SECTOR LAB'; ui.append(editorLink);
     const showroomLink = document.createElement('a'); showroomLink.className = 'showroom-link'; showroomLink.href = '/?showroom=1'; showroomLink.textContent = 'COMPONENT STUDIO'; ui.append(showroomLink);
     ui.querySelector('#start-run')?.addEventListener('click', () => this.startSession());

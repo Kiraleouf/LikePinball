@@ -21,6 +21,10 @@
       { "id": "main-left", "side": "left", "x": 240.75, "y": 858.5, "restAngle": 0.18, "activeAngle": -0.62 },
       { "id": "main-right", "side": "right", "x": 479.25, "y": 858.5, "restAngle": -0.18, "activeAngle": 0.62 }
     ],
+    "slingshots": [
+      { "id": "sling-left", "x": 190, "y": 740, "angle": 0.7 },
+      { "id": "sling-right", "x": 530, "y": 740, "angle": -0.7 }
+    ],
     "posts": [{ "id": "central-post", "x": 360, "y": 962, "radius": 11 }]
   }
 }
