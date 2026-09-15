@@ -77,4 +77,17 @@ describe('monde vertical', () => {
       }
     }
   });
+
+  it('génère des flippers secondaires asymétriques sans modifier les principaux', () => {
+    const alpha = generateWorld('alpha-22');
+    const beta = generateWorld('beta-22');
+    expect(alpha.sectors[0].flippers).toEqual([]);
+    expect(alpha.sectors.slice(1).every((sector) => sector.flippers.length >= 1)).toBe(true);
+    expect(alpha.sectors.slice(1).map((sector) => sector.flippers)).not.toEqual(
+      beta.sectors.slice(1).map((sector) => sector.flippers),
+    );
+    expect(alpha.sectors.slice(1).some((sector) =>
+      sector.flippers.length === 1 || sector.flippers[0].y !== sector.flippers[1]?.y,
+    )).toBe(true);
+  });
 });

@@ -19,8 +19,7 @@ import type { WorldDefinition } from '../tables/types';
 
 export class GameScene extends Phaser.Scene {
   private ball?: BallController;
-  private leftFlipper?: FlipperController;
-  private rightFlipper?: FlipperController;
+  private readonly flippers = new Map<string, FlipperController>();
   private leftKeys: Phaser.Input.Keyboard.Key[] = [];
   private rightKeys: Phaser.Input.Keyboard.Key[] = [];
   private leftTapUntil = 0;
@@ -53,6 +52,7 @@ export class GameScene extends Phaser.Scene {
     this.world = generateWorld(this.seed);
     this.cameraSector = new CameraSectorState(this.world.sectors.length, CAMERA.sectorHeight, CAMERA.seamY, CAMERA.engagement);
     this.bumpers.clear();
+    this.flippers.clear();
   }
 
   public create(): void {
@@ -65,8 +65,7 @@ export class GameScene extends Phaser.Scene {
     this.launcherGate = new LauncherGateController(this);
     this.createBumpers();
     const flipperTexture = renderer.createFlipperTexture();
-    this.leftFlipper = new FlipperController(this, 'left', flipperTexture);
-    this.rightFlipper = new FlipperController(this, 'right', flipperTexture);
+    this.createFlippers(flipperTexture);
     this.prepareBall(renderer.createBallTexture());
     this.createControls();
     this.createHud();
@@ -94,8 +93,9 @@ export class GameScene extends Phaser.Scene {
     this.launchCharge.update(delta);
     this.launchGauge?.update(this.launchCharge.value);
     if (this.ball?.hasExitedLauncher) this.launcherGate?.closeAfterExit(this.ball.image.x);
-    this.leftFlipper?.update(this.leftKeys.some((key) => key.isDown) || time < this.leftTapUntil);
-    this.rightFlipper?.update(this.rightKeys.some((key) => key.isDown) || time < this.rightTapUntil);
+    const leftActive = this.leftKeys.some((key) => key.isDown) || time < this.leftTapUntil;
+    const rightActive = this.rightKeys.some((key) => key.isDown) || time < this.rightTapUntil;
+    for (const flipper of this.flippers.values()) flipper.update(flipper.side === 'left' ? leftActive : rightActive);
 
   }
 
@@ -196,6 +196,23 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private createFlippers(texture: string): void {
+    const main = [
+      { id: 'main-left', side: 'left' as const, x: PHYSICS.flipper.left.pivot.x, y: PHYSICS.flipper.left.pivot.y, restAngle: PHYSICS.flipper.left.restAngle, activeAngle: PHYSICS.flipper.left.activeAngle },
+      { id: 'main-right', side: 'right' as const, x: PHYSICS.flipper.right.pivot.x, y: PHYSICS.flipper.right.pivot.y, restAngle: PHYSICS.flipper.right.restAngle, activeAngle: PHYSICS.flipper.right.activeAngle },
+    ];
+    for (const definition of main) {
+      const flipper = new FlipperController(this, definition, texture);
+      this.flippers.set(flipper.label, flipper);
+    }
+    for (const sector of this.world.sectors) {
+      for (const definition of sector.flippers) {
+        const flipper = new FlipperController(this, { ...definition, y: worldY(definition.y, sector.offsetY) }, texture);
+        this.flippers.set(flipper.label, flipper);
+      }
+    }
+  }
+
   private handleCollision(event: Phaser.Physics.Matter.Events.CollisionStartEvent): void {
     if (this.run.phase !== 'playing') return;
     this.handleFlipperHits(event);
@@ -240,8 +257,8 @@ export class GameScene extends Phaser.Scene {
     const ballBody = this.ball.image.body;
     for (const { bodyA, bodyB } of event.pairs) {
       const other = bodyA === ballBody ? bodyB : bodyB === ballBody ? bodyA : undefined;
-      if (other?.label === 'flipper:left') this.leftFlipper?.kick(this.ball.image);
-      if (other?.label === 'flipper:right') this.rightFlipper?.kick(this.ball.image);
+      const flipper = other ? this.flippers.get(other.label) : undefined;
+      flipper?.kick(this.ball.image);
     }
   }
 

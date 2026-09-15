@@ -1,5 +1,5 @@
 import { BACKGROUND_COLOR } from '../config/game';
-import type { BumperDefinition, RailDefinition, SectorDefinition, WallDefinition, WorldDefinition } from './types';
+import type { BumperDefinition, FlipperDefinition, RailDefinition, SectorDefinition, WallDefinition, WorldDefinition } from './types';
 
 const SECTOR_COUNT = 4;
 const COLORS = [0xff3bc8, 0xffbd35, 0x35e7ff] as const;
@@ -51,10 +51,15 @@ function generateSector(id: number, random: () => number): SectorDefinition {
       { x: mirror ? 580 : 140, y: 650 }, { x: mirror ? 540 : 180, y: 735 },
     ] },
   ];
-  const obstacleLeft = random() > 0.5;
   const obstacles: WallDefinition[] = [{
-    x: obstacleLeft ? 205 : 515, y: 805, width: 105, height: 16, angle: obstacleLeft ? 0.22 : -0.22,
+    x: 360, y: 810, width: 90, height: 14, angle: random() > 0.5 ? 0.12 : -0.12,
   }];
+  const flippers: FlipperDefinition[] = [];
+  if (id > 0) {
+    const pattern = Math.floor(random() * 3);
+    if (pattern !== 1) flippers.push({ id: `s${id}-left`, side: 'left', x: 170, y: pattern === 2 ? 850 : 875, restAngle: 0.26, activeAngle: -0.62 });
+    if (pattern !== 0) flippers.push({ id: `s${id}-right`, side: 'right', x: 550, y: pattern === 2 ? 900 : 875, restAngle: -0.26, activeAngle: 0.62 });
+  }
   const walls: WallDefinition[] = [
     { x: 100, y: 540, width: 28, height: 920 },
     { x: 620, y: 540, width: 28, height: 920 },
@@ -65,7 +70,7 @@ function generateSector(id: number, random: () => number): SectorDefinition {
     { x: 525, y: 980, width: 235, height: 28, angle: -0.18 },
   );
   if (id === SECTOR_COUNT - 1) walls.push({ x: 360, y: 72, width: 548, height: 28 });
-  return { id, name: `Secteur ${id}`, offsetY: -id * 1_000, walls, bumpers, rails, obstacles };
+  return { id, name: `Secteur ${id}`, offsetY: -id * 1_000, walls, bumpers, rails, obstacles, flippers };
 }
 
 export function generateWorld(seed: string): WorldDefinition {
