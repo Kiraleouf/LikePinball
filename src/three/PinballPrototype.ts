@@ -44,6 +44,8 @@ export class PinballPrototype {
   private launcherExited = false;
   private ballLeftStart = false;
   private bestSector = 0;
+  private hasStarted = false;
+  private gameOverShown = false;
   private lastTime = performance.now();
   private readonly baseCameraPosition = new THREE.Vector3(0, 14, 21);
   private readonly baseCameraTarget = new THREE.Vector3();
@@ -252,7 +254,9 @@ export class PinballPrototype {
 
   private addScore(points: number): void {
     const value = this.score.add(points);
+    this.pulse('score-panel');
     for (const gateIndex of this.unlocks.update(value)) {
+      this.pulse('progress-panel');
       const gate = this.sectorGates.get(gateIndex);
       if (gate) {
         this.requireWorld().removeRigidBody(gate.body);
@@ -265,7 +269,11 @@ export class PinballPrototype {
   }
 
   private bindControls(): void {
-    addEventListener('keydown', (event) => { this.keys.add(event.code); if (event.code === 'Space' && !event.repeat && this.run.phase === 'ready') this.charge.start(); });
+    addEventListener('keydown', (event) => {
+      if (!this.hasStarted && (event.code === 'Space' || event.code === 'Enter')) { this.startSession(); return; }
+      if (this.run.phase === 'game-over' && event.code === 'KeyR') { location.reload(); return; }
+      this.keys.add(event.code); if (event.code === 'Space' && !event.repeat && this.run.phase === 'ready') this.charge.start();
+    });
     addEventListener('keyup', (event) => { this.keys.delete(event.code); if (event.code === 'Space') this.releaseLauncher(); });
     this.renderer.domElement.focus();
   }
@@ -304,11 +312,17 @@ export class PinballPrototype {
   }
 
   private updateHud(): void {
-    this.setText('score', `SCORE ${this.score.value.toLocaleString('fr-FR')}`);
-    this.setText('sector', `SECTEUR ${this.cameraSector.currentSector} · RECORD ${this.bestSector}`);
-    this.setText('target', `PROCHAIN ${this.unlocks.nextThreshold.toLocaleString('fr-FR')}`);
-    this.setText('balls', `BILLES ${this.run.ballsRemaining}`);
-    this.setText('charge', this.run.phase === 'ready' ? `PUISSANCE ${Math.round(this.charge.value * 100)}%` : this.run.phase === 'game-over' ? 'GAME OVER' : 'EN JEU');
+    this.setText('score', this.score.value.toLocaleString('fr-FR'));
+    this.setText('sector', `${this.cameraSector.currentSector + 1}`);
+    this.setText('height', `${this.bestSector + 1}`);
+    this.setText('target', this.unlocks.nextThreshold.toLocaleString('fr-FR'));
+    this.setText('balls', `${this.run.ballsRemaining}`);
+    this.setText('charge', this.run.phase === 'ready' ? 'PRÊT' : this.run.phase === 'game-over' ? 'TERMINÉE' : 'BILLE EN JEU');
+    const previous = this.unlocks.highestAccessibleSector === 0 ? 0 : sectorUnlockScore(this.unlocks.highestAccessibleSector);
+    const progress = Math.max(0, Math.min(1, (this.score.value - previous) / (this.unlocks.nextThreshold - previous)));
+    document.getElementById('progress-fill')?.style.setProperty('--progress', `${progress * 100}%`);
+    document.getElementById('power-fill')?.style.setProperty('--power', `${this.charge.value * 100}%`);
+    if (this.run.phase === 'game-over' && !this.gameOverShown) this.showGameOver();
   }
 
   private updateCamera(ballZ: number, delta: number): void {
@@ -321,10 +335,28 @@ export class PinballPrototype {
   }
 
   private createHud(): HTMLElement {
-    const hud = document.createElement('section'); hud.className = 'hud';
-    hud.innerHTML = `<strong>LIKEPINBALL // 3D</strong><span id="score"></span><span id="sector"></span><span id="target"></span><span id="balls"></span><span id="charge"></span><small>SEED ${this.seed}</small><span>Q/← · D/→ · ESPACE</span>`;
-    return hud;
+    const ui = document.createElement('section'); ui.className = 'game-ui';
+    ui.innerHTML = `<aside class="hud" aria-label="Statistiques de la partie">
+      <header><span class="brand-mark">LP</span><strong>LIKEPINBALL</strong><small>RUN ${this.seed}</small></header>
+      <div class="score-panel" id="score-panel"><span>SCORE</span><strong id="score">0</strong></div>
+      <div class="stats"><div><span>SECTEUR</span><strong id="sector">1</strong></div><div><span>RECORD</span><strong id="height">1</strong></div><div><span>BILLES</span><strong id="balls">3</strong></div></div>
+      <div class="progress-panel" id="progress-panel"><div><span>PROCHAIN SECTEUR</span><strong id="target">10 000</strong></div><i><b id="progress-fill"></b></i></div>
+      <div class="launcher-panel"><div><span>LANCEUR</span><strong id="charge">PRÊT</strong></div><i><b id="power-fill"></b></i></div>
+      <footer><kbd>Q</kbd><kbd>←</kbd> GAUCHE <kbd>D</kbd><kbd>→</kbd> DROITE <kbd>ESPACE</kbd> LANCER</footer>
+    </aside><div class="run-overlay" id="run-overlay"><div class="run-card"><span class="eyebrow">ASCENSION // 3D</span><h1>LIKE<span>PINBALL</span></h1><p>Monte, marque et ouvre la voie vers les secteurs supérieurs.</p><button id="start-run">LANCER LA RUN</button><small>ESPACE OU ENTRÉE</small></div></div>`;
+    ui.querySelector('#start-run')?.addEventListener('click', () => this.startSession());
+    return ui;
   }
+
+  private startSession(): void { this.hasStarted = true; document.getElementById('run-overlay')?.classList.add('is-hidden'); this.renderer.domElement.focus(); }
+
+  private showGameOver(): void {
+    this.gameOverShown = true; const overlay = document.getElementById('run-overlay'); if (!overlay) return;
+    overlay.innerHTML = `<div class="run-card game-over"><span class="eyebrow">RUN TERMINÉE</span><h2>${this.score.value.toLocaleString('fr-FR')}</h2><p>Score final · Secteur record ${this.bestSector + 1}</p><button id="restart-run">REJOUER</button><small>TOUCHE R</small></div>`;
+    overlay.classList.remove('is-hidden'); overlay.querySelector('#restart-run')?.addEventListener('click', () => location.reload());
+  }
+
+  private pulse(id: string): void { const element = document.getElementById(id); if (!element) return; element.classList.remove('pulse'); requestAnimationFrame(() => element.classList.add('pulse')); }
 
   private setText(id: string, value: string): void { const element = document.getElementById(id); if (element) element.textContent = value; }
   private launchPosition(): THREE.Vector3 { return this.onBoard(4.75, 7.7, 0.72); }
