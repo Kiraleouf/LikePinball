@@ -1,11 +1,7 @@
 import { BACKGROUND_COLOR } from '../config/game';
-import { readInitialTemplate } from './initialTemplate';
-import { parseTemplate, type SectorTemplateFile, type VariationSlot } from '../editor/template';
-import neonOrbit from './templates/neon-orbit.sector.json';
-import splitLane from './templates/split-lane.sector.json';
+import { readTemplateCatalogue } from './templateCatalogue';
+import { type SectorTemplateFile, type VariationSlot } from '../editor/template';
 import type { BumperDefinition, FlipperDefinition, SectorDefinition, WallDefinition, WorldDefinition } from './types';
-
-const TEMPLATE_POOL: readonly SectorTemplateFile[] = [neonOrbit, splitLane].map((value) => parseTemplate(JSON.stringify(value)));
 
 function hashSeed(seed: string): number {
   let hash = 2_166_136_261;
@@ -18,10 +14,12 @@ function randomFrom(seed: string): () => number {
   return () => { value += 0x6d2b79f5; let result = value; result = Math.imul(result ^ result >>> 15, result | 1); result ^= result + Math.imul(result ^ result >>> 7, result | 61); return ((result ^ result >>> 14) >>> 0) / 4_294_967_296; };
 }
 
-function chooseTemplate(random: () => number): SectorTemplateFile {
-  const total = TEMPLATE_POOL.reduce((sum, template) => sum + template.metadata.weight, 0); let choice = random() * total;
-  for (const template of TEMPLATE_POOL) { choice -= template.metadata.weight; if (choice <= 0) return template; }
-  return TEMPLATE_POOL[TEMPLATE_POOL.length - 1];
+function chooseTemplate(random: () => number, templates: readonly SectorTemplateFile[]): SectorTemplateFile {
+  const pool = templates.filter(template => template.metadata.sectorIndex === undefined);
+  if (!pool.length) throw new Error('Aucun template générique disponible.');
+  const total = pool.reduce((sum, template) => sum + template.metadata.weight, 0); let choice = random() * total;
+  for (const template of pool) { choice -= template.metadata.weight; if (choice <= 0) return template; }
+  return pool[pool.length - 1];
 }
 
 function slotFor(template: SectorTemplateFile, elementId: string): VariationSlot | undefined { return template.metadata.variationSlots.find((slot) => slot.elementId === elementId); }
@@ -36,8 +34,8 @@ function varyObstacle(obstacle: WallDefinition, index: number, template: SectorT
   const slot = slotFor(template, `obstacle:${index}`); return { ...obstacle, angle: (obstacle.angle ?? 0) + (slot?.angleRange ? (random() * 2 - 1) * slot.angleRange : 0) };
 }
 
-function assembleSector(seed: string, id: number): SectorDefinition {
-  const random = randomFrom(`${seed}:sector:${id}`); const template = chooseTemplate(random); const optional = new Set(template.metadata.optionalElementIds);
+function assembleSector(seed: string, id: number, templates: readonly SectorTemplateFile[]): SectorDefinition {
+  const random = randomFrom(`${seed}:sector:${id}`); const template = chooseTemplate(random, templates); const optional = new Set(template.metadata.optionalElementIds);
   const enabled = (elementId: string): boolean => !optional.has(elementId) || random() >= 0.42;
   const bumpers = template.sector.bumpers.filter((bumper) => enabled(bumper.id)).map((bumper) => varyBumper(bumper, template, random, id));
   const flippers: FlipperDefinition[] = id === 0 ? [] : template.sector.flippers.map((flipper) => ({ ...flipper, id: `s${id}-${flipper.id}` }));
@@ -53,15 +51,18 @@ function assembleSector(seed: string, id: number): SectorDefinition {
   };
 }
 
-export function generateSector(seed: string, id: number): SectorDefinition {
-  if (id === 0) return readInitialTemplate().sector;
-  return assembleSector(seed, id);
+export function generateSector(seed: string, id: number, templates: readonly SectorTemplateFile[] = readTemplateCatalogue()): SectorDefinition {
+  if (!Number.isSafeInteger(id) || id < 0) throw new Error('Index de secteur invalide.');
+  const fixed = templates.filter(template => template.metadata.sectorIndex === id);
+  if (fixed.length > 1) throw new Error(`Plusieurs templates revendiquent l’index ${id}.`);
+  if (fixed.length === 1) return { ...structuredClone(fixed[0].sector), id, offsetY: id === 0 ? 0 : -id * 1_000 };
+  return assembleSector(seed, id, templates);
 }
 
-export function generateWorld(seed: string, sectorCount = 2): WorldDefinition {
-  return { backgroundColor: BACKGROUND_COLOR, spawn: { x: 585, y: 940 }, drain: { x: 360, y: 1060, width: 260, height: 40 }, safetyPost: { x: 360, y: 962, radius: 11 }, sectors: Array.from({ length: sectorCount }, (_, id) => generateSector(seed, id)) };
+export function generateWorld(seed: string, sectorCount = 2, templates: readonly SectorTemplateFile[] = readTemplateCatalogue()): WorldDefinition {
+  return { backgroundColor: BACKGROUND_COLOR, spawn: { x: 585, y: 940 }, drain: { x: 360, y: 1060, width: 260, height: 40 }, safetyPost: { x: 360, y: 962, radius: 11 }, sectors: Array.from({ length: sectorCount }, (_, id) => generateSector(seed, id, templates)) };
 }
 
 export function createRunSeed(): string { return new URLSearchParams(window.location.search).get('seed') ?? crypto.randomUUID().slice(0, 8); }
 export const worldY = (localY: number, offsetY: number): number => localY + offsetY;
-export const availableTemplateIds = (): readonly string[] => TEMPLATE_POOL.map((template) => template.metadata.id);
+export const availableTemplateIds = (): readonly string[] => readTemplateCatalogue().filter(template => template.metadata.sectorIndex === undefined).map(template => template.metadata.id);

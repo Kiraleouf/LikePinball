@@ -8,6 +8,7 @@ export interface SectorTemplateFile {
 
 export interface SectorTemplateMetadata {
   readonly id: string;
+  readonly sectorIndex?: number;
   readonly tags: readonly string[];
   readonly weight: number;
   readonly connections: { readonly top: boolean; readonly bottom: boolean };
@@ -53,6 +54,7 @@ const positive = (value: unknown): value is number => finite(value) && value > 0
 const strings = (value: unknown): boolean => Array.isArray(value) && value.every(item => typeof item === 'string');
 function isMetadata(value: unknown): boolean {
   return isRecord(value) && typeof value.id === 'string' && value.id.length > 0 && positive(value.weight)
+    && (value.sectorIndex === undefined || (Number.isSafeInteger(value.sectorIndex) && Number(value.sectorIndex) >= 0))
     && strings(value.tags) && strings(value.optionalElementIds) && Array.isArray(value.variationSlots)
     && value.variationSlots.every(v => isRecord(v) && typeof v.elementId === 'string'
       && ['maxOffsetX', 'maxOffsetY', 'angleRange'].every(key => v[key] === undefined || (finite(v[key]) && v[key] >= 0))

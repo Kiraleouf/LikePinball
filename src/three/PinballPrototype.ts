@@ -11,6 +11,7 @@ import { SectorUnlockState } from '../gameplay/SectorUnlockState';
 import { sectorUnlockScore, STARTING_BALLS } from '../config/game';
 import { parseTemplate } from '../editor/template';
 import { createRunSeed, generateSector, generateWorld } from '../tables';
+import { readTemplateCatalogue } from '../tables/templateCatalogue';
 import type { FlipperDefinition, Point, PostDefinition, SectorDefinition, WallDefinition } from '../tables/types';
 
 interface PhysicsMesh { readonly body: RAPIER.RigidBody; readonly mesh: THREE.Object3D; readonly visual?: Component3D }
@@ -39,6 +40,7 @@ export class PinballPrototype {
   private readonly score = new ScoreState();
   private readonly unlocks = new SectorUnlockState(sectorUnlockScore);
   private readonly charge = new LaunchChargeState(1_400);
+  private readonly templateCatalogue = readTemplateCatalogue();
   private readonly sectors = this.initialSectors();
   private readonly cameraSector = new CameraSectorState(this.sectors.length, SECTOR_LENGTH, -10, 2);
   private readonly bumperScores = new Map<number, number>();
@@ -293,7 +295,7 @@ export class PinballPrototype {
         this.sectorGates.delete(gateIndex);
       }
       const nextId = gateIndex + 2;
-      if (!this.sectors[nextId]) { const sector = generateSector(this.seed, nextId); this.sectors.push(sector); this.createSector(sector); this.cameraSector.setSectorCount(this.sectors.length); }
+      if (!this.sectors[nextId]) { const sector = generateSector(this.seed, nextId, this.templateCatalogue); this.sectors.push(sector); this.createSector(sector); this.cameraSector.setSectorCount(this.sectors.length); }
     }
   }
 
@@ -394,11 +396,11 @@ export class PinballPrototype {
     if (new URLSearchParams(location.search).has('editor-test')) {
       const source = localStorage.getItem('likepinball.editor-test');
       if (source) {
-        try { return [{ ...parseTemplate(source).sector, id: 0, offsetY: 0 }, generateSector(this.seed, 1)]; }
+        try { return [{ ...parseTemplate(source).sector, id: 0, offsetY: 0 }, generateSector(this.seed, 1, this.templateCatalogue)]; }
         catch (error) { console.warn('Template éditeur ignoré', error); }
       }
     }
-    return generateWorld(this.seed, 2).sectors;
+    return generateWorld(this.seed, 2, this.templateCatalogue).sectors;
   }
   private launchPosition(): THREE.Vector3 { return this.onBoard(4.75, 7.7, 0.72); }
   private mapX(x: number): number { return (x - 360) / 45; }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "metadata": {
-    "id": "initial-sector", "tags": ["initial"], "weight": 1,
+    "id": "initial-sector", "sectorIndex": 0, "tags": ["initial"], "weight": 1,
     "connections": { "top": true, "bottom": false },
     "optionalElementIds": [], "variationSlots": []
   },

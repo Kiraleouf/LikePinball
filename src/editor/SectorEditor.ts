@@ -4,7 +4,8 @@ import { createComponent, readPresets, resolveParams, type Component3D } from '.
 import * as THREE from 'three';
 import type { BumperDefinition, FlipperDefinition, PostDefinition, RailDefinition, SectorDefinition, WallDefinition } from '../tables/types';
 import { parseTemplate, serializeTemplate, type SectorTemplateMetadata } from './template';
-import { readInitialTemplate, saveInitialTemplate } from '../tables/initialTemplate';
+import { readInitialTemplate } from '../tables/initialTemplate';
+import { readTemplateCatalogue, saveTemplate, removeCustomTemplate } from '../tables/templateCatalogue';
 
 type EditableElement =
   | ({ readonly kind: 'bumper' } & BumperDefinition)
@@ -70,15 +71,17 @@ export class SectorEditor {
   private createPanel(): HTMLElement {
     const panel = document.createElement('aside'); panel.className = 'editor-panel';
     panel.innerHTML = `<header><span>LIKEPINBALL</span><strong>SECTOR LAB</strong><a href="/?showroom=1">STUDIO</a><a href="/">QUITTER</a></header>
-      <section><button id="open-initial">OUVRIR LE SECTEUR 0</button><label>NOM DU TEMPLATE<input id="template-name" value="Nouveau secteur"></label><p id="template-context"></p></section>
+      <section><label>TEMPLATE ACTIF<select id="template-list"></select></label><button id="open-initial">OUVRIR LE SECTEUR 0</button><label>NOM DU TEMPLATE<input id="template-name" value="Nouveau secteur"></label><label>INDEX FIXE (VIDE = GÉNÉRIQUE)<input id="sector-index" type="number" min="0" step="1" placeholder="Générique"></label><p id="template-context"></p></section>
       <section><span class="panel-label">AJOUTER</span><div class="tool-grid"><button data-add="bumper">BUMPER</button><button data-add="flipper">FLIPPER</button><button data-add="post">POST</button><button data-add="wall">MUR</button><button data-add="obstacle">OBSTACLE</button><button data-add="rail">RAIL</button></div><label>ÉLÉMENT<select id="element-list"></select></label></section>
       <section id="properties"><span class="panel-label">PROPRIÉTÉS</span><p>Sélectionne un élément sur le plateau.</p></section>
-      <section class="editor-actions"><button id="apply-initial" class="primary">SAUVEGARDER POUR LES RUNS</button><button id="new-template">NOUVEAU</button><button id="load-template">CHARGER</button><button id="save-template">EXPORTER JSON</button><button id="test-template">TESTER LE SECTEUR</button><input id="template-file" type="file" accept="application/json,.json" hidden><p role="status" id="editor-status"></p></section>
+      <section class="editor-actions"><button id="apply-initial" class="primary">SAUVEGARDER POUR LES RUNS</button><button id="remove-template">RETIRER DES RUNS</button><button id="new-template">NOUVEAU</button><button id="load-template">CHARGER</button><button id="save-template">EXPORTER JSON</button><button id="test-template">TESTER LE SECTEUR</button><input id="template-file" type="file" accept="application/json,.json" hidden><p role="status" id="editor-status"></p></section>
       <footer><span class="connection-key"></span> ZONES DE CONNEXION · SNAP 20 PX</footer>`;
     panel.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((button) => button.addEventListener('click', () => this.add(button.dataset.add as EditableElement['kind'])));
     panel.querySelector('#new-template')?.addEventListener('click', () => this.reset());
     panel.querySelector('#open-initial')?.addEventListener('click', () => this.openInitial());
     panel.querySelector('#apply-initial')?.addEventListener('click', () => this.applyInitial());
+    panel.querySelector('#remove-template')?.addEventListener('click', () => this.removeTemplate());
+    panel.querySelector<HTMLSelectElement>('#template-list')?.addEventListener('change', event => this.openSaved((event.currentTarget as HTMLSelectElement).value));
     panel.querySelector<HTMLSelectElement>('#element-list')?.addEventListener('change', event => { this.selectedId = (event.currentTarget as HTMLSelectElement).value || undefined; this.rebuild(); this.showProperties(); });
     panel.querySelector('#save-template')?.addEventListener('click', () => this.save());
     panel.querySelector('#load-template')?.addEventListener('click', () => panel.querySelector<HTMLInputElement>('#template-file')?.click());
@@ -182,20 +185,39 @@ export class SectorEditor {
 
   private message(text: string): void { document.getElementById('editor-status')!.textContent = text; }
   private updateContext(): void {
-    document.getElementById('template-context')!.textContent = this.editingInitial ? 'Secteur 0 de la prochaine run. Lanceur, drain rose et limites restent fixes.' : 'Template libre. Le test utilise temporairement le socle du secteur 0.';
-    (document.getElementById('apply-initial') as HTMLButtonElement).disabled = !this.editingInitial;
+    document.getElementById('template-context')!.textContent = this.editingInitial ? 'Secteur initial fixe 0. Lanceur, drain rose et limites restent fixes.' : 'Index 10 = secteur 10 (le départ est 0). Vide = sélection procédurale par seed. Sauvegarder pour appliquer à la prochaine run.';
+    const input = document.getElementById('sector-index') as HTMLInputElement;
+    input.value = this.metadata?.sectorIndex?.toString() ?? ''; input.disabled = this.editingInitial;
+    (document.getElementById('remove-template') as HTMLButtonElement).disabled = this.editingInitial;
+    const list = document.getElementById('template-list') as HTMLSelectElement;
+    list.replaceChildren(new Option('Choisir un template…', ''), ...readTemplateCatalogue().map(template => new Option(`${template.sector.name} · ${template.metadata.sectorIndex === undefined ? 'générique' : `index ${template.metadata.sectorIndex}`}`, template.metadata.id)));
+    list.value = this.metadata?.id ?? '';
+  }
+  private openSaved(id: string): void {
+    if (!id) return;
+    try { const template = readTemplateCatalogue().find(item => item.metadata.id === id); if (!template) throw new Error('Template introuvable.'); this.editingInitial = id === 'initial-sector'; this.metadata = template.metadata; this.fromSector(template.sector); this.updateContext(); this.message('Template actif chargé.'); }
+    catch (error) { this.message(String(error)); }
+  }
+  private removeTemplate(): void {
+    try { if (!this.metadata) return; removeCustomTemplate(this.metadata.id); this.openInitial(); this.message('Template retiré des nouvelles runs. Les exports JSON restent réimportables.'); }
+    catch (error) { this.message(String(error)); }
   }
   private openInitial(): void {
     try { const template = readInitialTemplate(); this.editingInitial = true; this.metadata = template.metadata; this.fromSector(template.sector); this.updateContext(); this.message('Secteur 0 chargé.'); }
     catch (error) { this.message(`Chargement impossible : ${String(error)}`); }
   }
   private applyInitial(): void {
-    try { saveInitialTemplate(parseTemplate(this.json())); this.message('Secteur 0 sauvegardé. Une nouvelle run utilisera cette disposition.'); }
+    try { const template = parseTemplate(this.json()); saveTemplate(template); this.metadata = template.metadata; this.updateContext(); this.message(`Sauvegardé pour les nouvelles runs : ${template.metadata.sectorIndex === undefined ? 'pool générique' : `index ${template.metadata.sectorIndex}`}.`); }
     catch (error) { this.message(`Sauvegarde impossible : ${String(error)}`); }
   }
   private removeSelected(): void { this.elements = this.elements.filter(({ id }) => id !== this.selectedId); this.selectedId = undefined; this.rebuild(); this.showProperties(); }
-  private reset(): void { this.editingInitial = false; this.metadata = undefined; (document.getElementById('template-name') as HTMLInputElement).value = 'Nouveau secteur'; this.elements = []; this.selectedId = undefined; this.rebuild(); this.showProperties(); this.updateContext(); this.message('Nouveau template libre.'); }
-  private json(): string { const json = serializeTemplate(this.toSector(), this.metadata); parseTemplate(json); return json; }
+  private reset(): void { this.editingInitial = false; this.metadata = { id: `custom-${crypto.randomUUID()}`, tags: [], weight: 1, connections: { top: true, bottom: true }, optionalElementIds: [], variationSlots: [] }; (document.getElementById('template-name') as HTMLInputElement).value = 'Nouveau secteur'; this.elements = []; this.selectedId = undefined; this.rebuild(); this.showProperties(); this.updateContext(); this.message('Nouveau template libre.'); }
+  private json(): string {
+    const input = document.getElementById('sector-index') as HTMLInputElement;
+    const sectorIndex = this.editingInitial ? 0 : input.value === '' ? undefined : input.valueAsNumber;
+    if (input.validity.badInput || (sectorIndex !== undefined && (!Number.isSafeInteger(sectorIndex) || sectorIndex < 0))) throw new Error('L’index doit être un entier positif ou nul, ou rester vide.');
+    const json = serializeTemplate(this.toSector(), { ...this.metadata, sectorIndex }); parseTemplate(json); return json;
+  }
   private save(): void {
     try { const json = this.json(); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([json], { type: 'application/json' })); link.download = `${this.templateName()}.sector.json`; link.click(); URL.revokeObjectURL(link.href); this.message('JSON exporté. La sauvegarde pour les runs est indépendante.'); }
     catch (error) { this.message(`Export impossible : ${String(error)}`); }
