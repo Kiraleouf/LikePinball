@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "components": {
+    "flipper": {
+      "width": 1,
+      "height": 1,
+      "depth": 1,
+      "bevel": 0.08,
+      "taper": 0.72,
+      "metalness": 0.78,
+      "roughness": 0.28,
+      "emissiveIntensity": 1.4,
+      "color": "#18232d",
+      "neon": "#35e7ff"
+    },
+    "bumper": {
+      "width": 1,
+      "height": 1,
+      "depth": 1,
+      "bevel": 0.08,
+      "taper": 0.72,
+      "metalness": 0.78,
+      "roughness": 0.28,
+      "emissiveIntensity": 1.4,
+      "color": "#18232d",
+      "neon": "#35e7ff"
+    },
+    "post": {
+      "width": 1,
+      "height": 1,
+      "depth": 1,
+      "bevel": 0.08,
+      "taper": 0.72,
+      "metalness": 0.78,
+      "roughness": 0.28,
+      "emissiveIntensity": 1.4,
+      "color": "#18232d",
+      "neon": "#35e7ff"
+    },
+    "ball": {
+      "width": 1,
+      "height": 1,
+      "depth": 1,
+      "bevel": 0.08,
+      "taper": 0.72,
+      "metalness": 0.78,
+      "roughness": 0.16,
+      "emissiveIntensity": 1.4,
+      "color": "#d6e5ed",
+      "neon": "#35e7ff"
+    },
+    "rail": {
+      "width": 1,
+      "height": 1,
+      "depth": 1,
+      "bevel": 0.08,
+      "taper": 0.72,
+      "metalness": 0.78,
+      "roughness": 0.28,
+      "emissiveIntensity": 1.4,
+      "color": "#18232d",
+      "neon": "#35e7ff"
+    },
+    "wall": {
+      "width": 1,
+      "height": 1,
+      "depth": 1,
+      "bevel": 0.08,
+      "taper": 0.72,
+      "metalness": 0.78,
+      "roughness": 0.28,
+      "emissiveIntensity": 1.4,
+      "color": "#18232d",
+      "neon": "#35e7ff"
+    },
+    "launcher": {
+      "width": 1,
+      "height": 1,
+      "depth": 1,
+      "bevel": 0.08,
+      "taper": 0.72,
+      "metalness": 0.78,
+      "roughness": 0.28,
+      "emissiveIntensity": 1.4,
+      "color": "#18232d",
+      "neon": "#35e7ff"
+    },
+    "gate": {
+      "width": 1,
+      "height": 1,
+      "depth": 1,
+      "bevel": 0.08,
+      "taper": 0.72,
+      "metalness": 0.78,
+      "roughness": 0.28,
+      "emissiveIntensity": 1.4,
+      "color": "#18232d",
+      "neon": "#35e7ff"
+    }
+  }
+}

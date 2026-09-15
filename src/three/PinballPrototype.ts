@@ -1,3 +1,5 @@
+import { createGameLighting } from './components/lighting';
+import { createComponent, readPresets, resolveParams, type Component3D, type ComponentKind, type ComponentOptions } from './components';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { CameraSectorState } from '../gameplay/CameraSectorState';
@@ -10,8 +12,8 @@ import { parseTemplate } from '../editor/template';
 import { createRunSeed, generateSector, generateWorld } from '../tables';
 import type { FlipperDefinition, Point, SectorDefinition, WallDefinition } from '../tables/types';
 
-interface PhysicsMesh { readonly body: RAPIER.RigidBody; readonly mesh: THREE.Object3D }
-interface Flipper3D { readonly body: RAPIER.RigidBody; readonly side: 'left' | 'right'; readonly rest: number; readonly active: number }
+interface PhysicsMesh { readonly body: RAPIER.RigidBody; readonly mesh: THREE.Object3D; readonly visual?: Component3D }
+interface Flipper3D { readonly body: RAPIER.RigidBody; readonly visual: Component3D; readonly side: 'left' | 'right'; readonly rest: number; readonly active: number }
 
 const TILT = 0.11;
 const SECTOR_LENGTH = 20;
@@ -23,6 +25,11 @@ export class PinballPrototype {
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 160);
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true });
   private readonly boardRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(TILT, 0, 0));
+  private readonly components: Component3D[] = [];
+  private readonly visualPresets = readPresets();
+  private readonly hitVisuals = new Map<number, Component3D>();
+  private launcherVisual?: Component3D;
+  private ballVisual?: Component3D;
   private readonly moving: PhysicsMesh[] = [];
   private readonly flippers: Flipper3D[] = [];
   private readonly keys = new Set<string>();
@@ -41,7 +48,7 @@ export class PinballPrototype {
   private ballCollider?: RAPIER.Collider;
   private drainHandle?: number;
   private launcherGate?: RAPIER.RigidBody;
-  private launcherGateMesh?: THREE.Object3D;
+  private gateVisual?: Component3D;
   private launcherExited = false;
   private ballLeftStart = false;
   private bestSector = 0;
@@ -62,7 +69,7 @@ export class PinballPrototype {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.3;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.domElement.tabIndex = 0;
     root.append(this.renderer.domElement, this.createHud());
     this.resize();
@@ -88,12 +95,7 @@ export class PinballPrototype {
   private createScene(): void {
     this.scene.background = new THREE.Color(0x020508);
     this.scene.fog = new THREE.FogExp2(0x020508, 0.018);
-    this.scene.add(new THREE.HemisphereLight(0x8bdcff, 0x05070b, 1.5));
-    const cyan = new THREE.PointLight(CYAN, 70, 45, 2); cyan.position.set(-6, 10, 5); this.scene.add(cyan);
-    const pink = new THREE.PointLight(0xff3bc8, 55, 36, 2); pink.position.set(6, 7, -8); this.scene.add(pink);
-    const key = new THREE.DirectionalLight(0xd9f8ff, 2.3); key.position.set(-8, 18, 10); key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024); key.shadow.camera.left = -15; key.shadow.camera.right = 15;
-    key.shadow.camera.top = 18; key.shadow.camera.bottom = -45; this.scene.add(key);
+    createGameLighting(this.scene);
   }
 
   private createSector(sector: SectorDefinition): void {
@@ -117,9 +119,14 @@ export class PinballPrototype {
     this.addFlipper('main-left', -2.15, 6.2, 'left', 0.18, -0.62);
     this.addFlipper('main-right', 2.15, 6.2, 'right', -0.18, 0.62);
     this.addFixedBox('couloir-interieur', 4.05, 3.7, 0.45, 0.12, 5.6, 0.62, CYAN);
-    const plunger = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.48, 1.6, 20), this.metalMaterial());
-    plunger.position.copy(this.onBoard(4.75, 8.75, 0.62)); plunger.quaternion.copy(this.boardRotation);
-    plunger.castShadow = true; this.scene.add(plunger);
+    this.launcherVisual = this.component('launcher');
+    const plunger = this.launcherVisual.root;
+    plunger.position.copy(this.onBoard(4.75, 8.75, 0.62)); plunger.quaternion.copy(this.boardRotation); this.scene.add(plunger);
+    this.gateVisual = this.component('gate');
+    this.gateVisual.setState('Activate');
+    this.gateVisual.root.position.copy(this.onBoard(4.65, 5.8, 0.45));
+    this.gateVisual.root.quaternion.copy(this.boardRotation);
+    this.scene.add(this.gateVisual.root);
     const world = this.requireWorld();
     const drainPosition = this.onBoard(0, 9.5, 0.25);
     const drainBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(drainPosition.x, drainPosition.y, drainPosition.z).setRotation(this.boardRotation));
@@ -131,11 +138,10 @@ export class PinballPrototype {
     const world = this.requireWorld();
     const position = this.launchPosition();
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setCcdEnabled(true));
-    const collider = world.createCollider(RAPIER.ColliderDesc.ball(0.42).setRestitution(0.72).setFriction(0.08)
+    this.ballVisual = this.component('ball');
+    const collider = world.createCollider(this.collider(this.ballVisual).setRestitution(0.72).setFriction(0.08)
       .setDensity(1.2).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 24), new THREE.MeshPhysicalMaterial({
-      color: 0xe8fbff, emissive: CYAN, emissiveIntensity: 0.45, metalness: 0.75, roughness: 0.16,
-    }));
+    const mesh = this.ballVisual.root;
     mesh.castShadow = true; this.scene.add(mesh); this.moving.push({ body, mesh }); this.ball = body; this.ballCollider = collider;
   }
 
@@ -144,14 +150,11 @@ export class PinballPrototype {
     const x = this.mapX(definition.x); const z = this.mapZ(sector, definition.y); const radius = definition.radius / 48;
     const position = this.onBoard(x, z, 0.62);
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(this.boardRotation));
-    const collider = world.createCollider(RAPIER.ColliderDesc.cylinder(0.6, radius).setRestitution(1.15)
+    const visual = this.component('bumper', { size: { x: radius * 2, y: 1.2, z: radius * 2 } });
+    const collider = world.createCollider(this.collider(visual).setRestitution(1.15)
       .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
     this.bumperScores.set(collider.handle, definition.score);
-    const mesh = new THREE.Group();
-    const shell = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.08, 1.05, 32), this.metalMaterial());
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.78, radius * 0.9, 0.18, 32), this.neonMaterial(definition.color)); cap.position.y = 0.61;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.92, 0.1, 10, 32), this.neonMaterial(definition.color)); ring.rotation.x = Math.PI / 2; ring.position.y = 0.56;
-    shell.castShadow = true; shell.receiveShadow = true; mesh.add(shell, cap, ring);
+    const mesh = visual.root; this.hitVisuals.set(collider.handle, visual);
     mesh.position.copy(position); mesh.quaternion.copy(this.boardRotation); this.scene.add(mesh);
   }
 
@@ -159,7 +162,7 @@ export class PinballPrototype {
     const ax = this.mapX(from.x); const az = this.mapZ(sector, from.y); const bx = this.mapX(to.x); const bz = this.mapZ(sector, to.y);
     const dx = bx - ax; const dz = bz - az;
     this.addFixedBox('guide', (ax + bx) / 2, (az + bz) / 2, 0.32, Math.hypot(dx, dz) / 2, thickness / 100, 0.32, color, -Math.atan2(dz, dx));
-    this.addTube(ax, az, bx, bz, Math.max(0.07, thickness / 95), color);
+
   }
 
   private addObstacle(sector: number, obstacle: WallDefinition, index: number): void {
@@ -174,58 +177,61 @@ export class PinballPrototype {
   private addFlipper(name: string, x: number, z: number, side: 'left' | 'right', rest: number, active: number): void {
     const world = this.requireWorld(); const position = this.onBoard(x, z, 0.55); const rotation = this.flipperRotation(rest);
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(position.x, position.y, position.z).setRotation(rotation));
-    world.createCollider(RAPIER.ColliderDesc.cuboid(1.25, 0.24, 0.3).setRestitution(0.6), body);
-    const mesh = new THREE.Group(); mesh.name = name;
-    const paddle = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 1.85, 6, 16), this.neonMaterial(CYAN));
-    paddle.rotation.z = Math.PI / 2; paddle.position.x = side === 'left' ? 0.28 : -0.28; paddle.castShadow = true;
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.55, 24), this.metalMaterial()); hub.castShadow = true;
-    mesh.add(paddle, hub);
-    this.scene.add(mesh); this.moving.push({ body, mesh }); this.flippers.push({ body, side, rest, active });
+    const visual = this.component('flipper', { side, externalPose: true });
+    const collider = world.createCollider(this.collider(visual).setRestitution(0.6), body); this.hitVisuals.set(collider.handle, visual);
+    const mesh = visual.root; mesh.name = name;
+    this.scene.add(mesh); this.moving.push({ body, mesh }); this.flippers.push({ body, visual, side, rest, active });
   }
 
   private addSectorGate(sector: number): void {
     const world = this.requireWorld(); const z = -10 - sector * SECTOR_LENGTH; const position = this.onBoard(0, z, 0.42);
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(this.boardRotation));
-    world.createCollider(RAPIER.ColliderDesc.cuboid(5.55, 0.55, 0.2).setRestitution(0.45), body);
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(11.1, 1.1, 0.4), this.neonMaterial(0xffbd35));
+    const visual = this.component('wall', { size: { x: 11.1, y: 1.1, z: 0.4 } });
+    world.createCollider(this.collider(visual).setRestitution(0.45), body);
+    const mesh = visual.root;
     mesh.position.copy(position); mesh.quaternion.copy(this.boardRotation); mesh.name = `gate-${sector}`; this.scene.add(mesh);
-    this.sectorGates.set(sector, { body, mesh });
+    this.sectorGates.set(sector, { body, mesh, visual });
   }
 
-  private addFixedBox(name: string, x: number, z: number, height: number, halfX: number, halfZ: number, halfY: number, color: number, yaw = 0): void {
+  private addFixedBox(name: string, x: number, z: number, height: number, halfX: number, halfZ: number, halfY: number, _color: number, yaw = 0): void {
     const world = this.requireWorld(); const position = this.onBoard(x, z, height);
     const rotation = this.boardRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw));
     const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(rotation));
-    world.createCollider(RAPIER.ColliderDesc.cuboid(halfX, halfY, halfZ).setRestitution(0.45), body);
-    const material = name.startsWith('plateau-')
-      ? new THREE.MeshStandardMaterial({ color: 0x071014, metalness: 0.25, roughness: 0.78 })
-      : this.neonMaterial(color);
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(halfX * 2, halfY * 2, halfZ * 2), material);
+    const visual = name.startsWith('plateau-') ? undefined : this.component(name === 'guide' ? 'rail' : 'wall', { size: { x: halfX * 2, y: halfY * 2, z: halfZ * 2 } });
+    const mesh = visual?.root ?? new THREE.Mesh(new THREE.BoxGeometry(halfX * 2, halfY * 2, halfZ * 2), new THREE.MeshStandardMaterial({ color: 0x071014, metalness: 0.25, roughness: 0.78 }));
+    const collider = world.createCollider((visual ? this.collider(visual) : RAPIER.ColliderDesc.cuboid(halfX, halfY, halfZ)).setRestitution(0.45), body);
+    if (visual) this.hitVisuals.set(collider.handle, visual);
     mesh.name = name; mesh.position.copy(position); mesh.quaternion.copy(rotation); mesh.castShadow = !name.startsWith('plateau-'); mesh.receiveShadow = true; this.scene.add(mesh);
   }
 
   private addPost(x: number, z: number): void {
-    const post = new THREE.Group();
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.9, 16), this.metalMaterial());
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 10), this.neonMaterial(CYAN)); cap.position.y = 0.48;
-    stem.castShadow = true; post.add(stem, cap); post.position.copy(this.onBoard(x, z, 0.48)); post.quaternion.copy(this.boardRotation); this.scene.add(post);
+    const post = this.component('post').root; post.position.copy(this.onBoard(x, z, 0.48)); post.quaternion.copy(this.boardRotation); this.scene.add(post);
   }
 
-  private addTube(ax: number, az: number, bx: number, bz: number, radius: number, color: number): void {
-    const start = this.onBoard(ax, az, 0.72); const end = this.onBoard(bx, bz, 0.72); const direction = end.clone().sub(start);
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, direction.length(), 12), this.neonMaterial(color));
-    tube.position.copy(start).add(end).multiplyScalar(0.5);
-    tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-    tube.castShadow = true; this.scene.add(tube);
+  private component(kind: ComponentKind, options: ComponentOptions = {}): Component3D {
+    const visual = createComponent(kind, { ...options, params: options.params ?? resolveParams(kind, this.visualPresets) }); this.components.push(visual); return visual;
+  }
+
+  private collider(component: Component3D): RAPIER.ColliderDesc {
+    const c = component.collider;
+    if (c.type === 'ball') return RAPIER.ColliderDesc.ball(c.radius);
+    if (c.type === 'cylinder') return RAPIER.ColliderDesc.cylinder(c.halfHeight, c.radius);
+    return RAPIER.ColliderDesc.cuboid(c.half.x, c.half.y, c.half.z);
   }
 
   private update(time: number): void {
     const world = this.world; if (!world) return;
     const delta = Math.min((time - this.lastTime) / 1_000, 1 / 30); this.lastTime = time; world.timestep = delta;
     this.charge.update(delta * 1_000);
+    if (this.charge.active) this.launcherVisual?.setState('Activate');
+    this.launcherVisual?.setAmount(this.charge.value);
+    this.components.forEach(component => component.update(delta));
     const left = this.keys.has('ArrowLeft') || this.keys.has('KeyQ'); const right = this.keys.has('ArrowRight') || this.keys.has('KeyD');
-    this.flippers.forEach((flipper) => flipper.body.setNextKinematicRotation(this.flipperRotation(
-      (flipper.side === 'left' ? left : right) ? flipper.active : flipper.rest)));
+    this.flippers.forEach(flipper => {
+      const active = flipper.side === 'left' ? left : right;
+      flipper.visual.setState(active ? 'Activate' : 'Idle');
+      flipper.body.setNextKinematicRotation(this.flipperRotation(active ? flipper.active : flipper.rest));
+    });
     world.step(this.eventQueue); this.handleCollisions();
     for (const { body, mesh } of this.moving) { const p = body.translation(); const r = body.rotation(); mesh.position.set(p.x, p.y, p.z); mesh.quaternion.set(r.x, r.y, r.z, r.w); }
     if (this.ball) this.updateBall(delta);
@@ -249,6 +255,8 @@ export class PinballPrototype {
       const other = first === ballHandle ? second : first;
       if (other === this.drainHandle) { this.loseBall(); return; }
       const points = this.bumperScores.get(other);
+      this.ballVisual?.setState('Hit');
+      this.hitVisuals.get(other)?.setState('Hit');
       if (points) this.addScore(points);
     });
   }
@@ -262,6 +270,7 @@ export class PinballPrototype {
       if (gate) {
         this.requireWorld().removeRigidBody(gate.body);
         this.scene.remove(gate.mesh);
+        if (gate.visual) { gate.visual.dispose(); const index = this.components.indexOf(gate.visual); if (index >= 0) this.components.splice(index, 1); }
         this.sectorGates.delete(gateIndex);
       }
       const nextId = gateIndex + 2;
@@ -281,6 +290,7 @@ export class PinballPrototype {
 
   private releaseLauncher(): void {
     const power = this.charge.release(); if (power === undefined || !this.run.launch() || !this.ball) return;
+    this.launcherVisual?.setState('Hit');
     this.ball.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
     this.ball.setTranslation(this.onBoard(3.45, 4.45, 0.72), true);
     const velocity = new THREE.Vector3(-4, 0, -18 - power * 25).applyQuaternion(this.boardRotation);
@@ -290,9 +300,8 @@ export class PinballPrototype {
   private closeLauncherGate(): void {
     const world = this.requireWorld(); const position = this.onBoard(4.65, 5.8, 0.45);
     this.launcherGate = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(this.boardRotation));
-    world.createCollider(RAPIER.ColliderDesc.cuboid(0.75, 0.5, 0.18), this.launcherGate);
-    const gate = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 1.15, 4, 12), this.neonMaterial(0xffbd35)); gate.rotation.z = Math.PI / 2;
-    gate.position.copy(position); gate.quaternion.premultiply(this.boardRotation); gate.castShadow = true; this.scene.add(gate); this.launcherGateMesh = gate; this.launcherExited = true;
+    if (this.gateVisual) { world.createCollider(this.collider(this.gateVisual), this.launcherGate); this.gateVisual.setState('Idle'); }
+    this.launcherExited = true;
   }
 
   private prepareRetry(): void { this.run.retryLaunch(); this.resetBall(false); }
@@ -306,7 +315,7 @@ export class PinballPrototype {
 
   private resetBall(removeGate: boolean): void {
     if (removeGate && this.launcherGate) { this.requireWorld().removeRigidBody(this.launcherGate); this.launcherGate = undefined; }
-    if (removeGate && this.launcherGateMesh) { this.scene.remove(this.launcherGateMesh); this.launcherGateMesh = undefined; }
+    if (removeGate) this.gateVisual?.setState('Activate');
     this.ball?.setBodyType(RAPIER.RigidBodyType.Fixed, true); this.ball?.setTranslation(this.launchPosition(), true);
     this.ball?.setLinvel({ x: 0, y: 0, z: 0 }, true); this.ball?.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.launcherExited = false; this.ballLeftStart = false; this.charge.reset();
@@ -346,6 +355,7 @@ export class PinballPrototype {
       <footer><kbd>Q</kbd><kbd>←</kbd> GAUCHE <kbd>D</kbd><kbd>→</kbd> DROITE <kbd>ESPACE</kbd> LANCER</footer>
     </aside><div class="run-overlay" id="run-overlay"><div class="run-card"><span class="eyebrow">ASCENSION // 3D</span><h1>LIKE<span>PINBALL</span></h1><p>Monte, marque et ouvre la voie vers les secteurs supérieurs.</p><button id="start-run">LANCER LA RUN</button><small>ESPACE OU ENTRÉE</small></div></div>`;
     const editorLink = document.createElement('a'); editorLink.className = 'editor-link'; editorLink.href = '/?editor=1'; editorLink.textContent = 'SECTOR LAB'; ui.append(editorLink);
+    const showroomLink = document.createElement('a'); showroomLink.className = 'showroom-link'; showroomLink.href = '/?showroom=1'; showroomLink.textContent = 'COMPONENT STUDIO'; ui.append(showroomLink);
     ui.querySelector('#start-run')?.addEventListener('click', () => this.startSession());
     return ui;
   }
@@ -377,8 +387,6 @@ export class PinballPrototype {
   private onBoard(x: number, z: number, height: number): THREE.Vector3 { return new THREE.Vector3(x, height, z).applyQuaternion(this.boardRotation); }
   private toBoard(position: RAPIER.Vector): THREE.Vector3 { return new THREE.Vector3(position.x, position.y, position.z).applyQuaternion(this.boardRotation.clone().invert()); }
   private flipperRotation(yaw: number): THREE.Quaternion { return this.boardRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw)); }
-  private neonMaterial(color: number): THREE.MeshStandardMaterial { return new THREE.MeshStandardMaterial({ color: GRAPHITE, emissive: color, emissiveIntensity: 1.4, metalness: 0.45, roughness: 0.3 }); }
-  private metalMaterial(): THREE.MeshStandardMaterial { return new THREE.MeshStandardMaterial({ color: 0x26333a, metalness: 0.88, roughness: 0.24 }); }
   private resize(): void { const width = this.root.clientWidth; const height = this.root.clientHeight; this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height); }
   private requireWorld(): RAPIER.World { if (!this.world) throw new Error('Monde Rapier non initialisé'); return this.world; }
 }

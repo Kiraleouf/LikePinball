@@ -1,3 +1,5 @@
+import { createGameLighting } from '../three/components/lighting';
+import { createComponent, readPresets, resolveParams, type Component3D } from '../three/components';
 import * as THREE from 'three';
 import type { BumperDefinition, FlipperDefinition, RailDefinition, SectorDefinition, WallDefinition } from '../tables/types';
 import { parseTemplate, serializeTemplate } from './template';
@@ -19,6 +21,9 @@ export class SectorEditor {
   private readonly pointer = new THREE.Vector2();
   private readonly plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.55);
   private readonly objectIds = new Map<THREE.Object3D, string>();
+  private readonly components: Component3D[] = [];
+  private readonly visualPresets = readPresets();
+  private selectionBox?: THREE.BoxHelper;
   private readonly visuals = new Map<string, THREE.Object3D>();
   private elements: EditableElement[] = [];
   private selectedId?: string;
@@ -27,6 +32,7 @@ export class SectorEditor {
 
   public constructor(private readonly root: HTMLElement) {
     root.classList.add('editor-mode');
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace; this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.3;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.shadowMap.enabled = true;
     root.append(this.renderer.domElement, this.createPanel());
     this.createScene(); this.bind(); this.resize(); this.render();
@@ -34,8 +40,7 @@ export class SectorEditor {
 
   private createScene(): void {
     this.scene.background = new THREE.Color(0x020508);
-    this.scene.add(new THREE.HemisphereLight(0xb5efff, 0x081015, 2));
-    const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(-8, 15, 8); key.castShadow = true; this.scene.add(key);
+    createGameLighting(this.scene);
     const board = new THREE.Mesh(new THREE.BoxGeometry(12, 0.5, 20), new THREE.MeshStandardMaterial({ color: 0x071014, roughness: 0.76, metalness: 0.25 }));
     board.receiveShadow = true; board.position.y = -0.25; this.scene.add(board);
     const grid = new THREE.GridHelper(20, 20, CYAN, 0x123a44); grid.scale.x = 0.6; grid.position.y = 0.01; this.scene.add(grid);
@@ -44,12 +49,12 @@ export class SectorEditor {
     this.camera.position.set(0, 19, 15); this.camera.lookAt(0, 0, 0);
   }
 
-  private addBoundary(x: number): void { const wall = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1, 20), this.neon(CYAN)); wall.position.set(x, 0.5, 0); this.scene.add(wall); }
+  private addBoundary(x: number): void { const wall = createComponent('wall', { params: resolveParams('wall', this.visualPresets), size: { x: 0.36, y: 1.3, z: 20 } }).root; wall.position.set(x, 0.5, 0); this.scene.add(wall); }
   private addConnectionZone(z: number, name: string): void { const zone = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.04, 0.8), new THREE.MeshBasicMaterial({ color: 0x39ff9a, transparent: true, opacity: 0.3 })); zone.position.set(0, 0.04, z); zone.name = name; this.scene.add(zone); }
 
   private createPanel(): HTMLElement {
     const panel = document.createElement('aside'); panel.className = 'editor-panel';
-    panel.innerHTML = `<header><span>LIKEPINBALL</span><strong>SECTOR LAB</strong><a href="/">QUITTER</a></header>
+    panel.innerHTML = `<header><span>LIKEPINBALL</span><strong>SECTOR LAB</strong><a href="/?showroom=1">STUDIO</a><a href="/">QUITTER</a></header>
       <section><label>NOM DU TEMPLATE<input id="template-name" value="Nouveau secteur"></label></section>
       <section><span class="panel-label">AJOUTER</span><div class="tool-grid"><button data-add="bumper">BUMPER</button><button data-add="flipper">FLIPPER</button><button data-add="obstacle">OBSTACLE</button><button data-add="rail">RAIL</button></div></section>
       <section id="properties"><span class="panel-label">PROPRIÉTÉS</span><p>Sélectionne un élément sur le plateau.</p></section>
@@ -82,22 +87,36 @@ export class SectorEditor {
   }
 
   private rebuild(): void {
-    for (const visual of this.visuals.values()) this.scene.remove(visual);
+    if (this.selectionBox) { this.selectionBox.removeFromParent(); this.selectionBox.geometry.dispose(); (this.selectionBox.material as THREE.Material).dispose(); this.selectionBox = undefined; }
+    this.components.forEach(component => component.dispose()); this.components.length = 0;
+    for (const visual of this.visuals.values()) visual.removeFromParent();
     this.visuals.clear(); this.objectIds.clear();
     for (const element of this.elements) {
       const visual = this.createVisual(element); visual.userData.selected = element.id === this.selectedId;
       visual.traverse((object) => this.objectIds.set(object, element.id)); this.visuals.set(element.id, visual); this.scene.add(visual);
+      if (element.id === this.selectedId) { this.selectionBox = new THREE.BoxHelper(visual, 0xffbd35); this.scene.add(this.selectionBox); }
     }
     this.render();
   }
 
   private createVisual(element: EditableElement): THREE.Object3D {
-    const selected = element.id === this.selectedId; const material = this.neon(selected ? 0xffbd35 : element.kind === 'rail' ? element.color : CYAN);
-    if (element.kind === 'bumper') { const radius = element.radius / 48; const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 1.1, 28), material); mesh.position.copy(this.worldPoint(element.x, element.y, 0.55)); return mesh; }
-    if (element.kind === 'flipper') { const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.8, 5, 14), material); mesh.rotation.z = Math.PI / 2; mesh.rotation.y = -element.restAngle; mesh.position.copy(this.worldPoint(element.x, element.y, 0.5)); return mesh; }
-    if (element.kind === 'obstacle') { const mesh = new THREE.Mesh(new THREE.BoxGeometry(element.width / 45, 0.7, element.height / 40), material); mesh.rotation.y = -(element.angle ?? 0); mesh.position.copy(this.worldPoint(element.x, element.y, 0.36)); return mesh; }
-    const [a, b] = element.points; const start = this.worldPoint(a.x, a.y, 0.62); const end = this.worldPoint(b.x, b.y, 0.62); const direction = end.clone().sub(start);
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(element.thickness / 100, element.thickness / 100, direction.length(), 12), material); mesh.position.copy(start).add(end).multiplyScalar(0.5); mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize()); return mesh;
+    const group = new THREE.Group();
+    const add = (kind: Parameters<typeof createComponent>[0], options: Parameters<typeof createComponent>[1] = {}) => {
+      const component = createComponent(kind, { ...options, params: resolveParams(kind, this.visualPresets) }); this.components.push(component); group.add(component.root); return component.root;
+    };
+    if (element.kind === 'bumper') {
+      const radius = element.radius / 48; add('bumper', { size: { x: radius * 2, y: 1.2, z: radius * 2 } }); group.position.copy(this.worldPoint(element.x, element.y, 0.62));
+    } else if (element.kind === 'flipper') {
+      add('flipper', { side: element.side, externalPose: true }); group.rotation.y = element.restAngle; group.position.copy(this.worldPoint(element.x, element.y, 0.55));
+    } else if (element.kind === 'obstacle') {
+      add('wall', { size: { x: element.width / 45, y: 0.72, z: element.height / 40 } }); group.rotation.y = -(element.angle ?? 0); group.position.copy(this.worldPoint(element.x, element.y, 0.36));
+    } else {
+      element.points.slice(1).forEach((b, index) => {
+        const a = element.points[index]; const start = this.worldPoint(a.x, a.y, 0.32); const end = this.worldPoint(b.x, b.y, 0.32); const direction = end.clone().sub(start);
+        const rail = add('rail', { size: { x: direction.length(), y: 0.64, z: element.thickness / 50 } }); rail.position.copy(start).add(end).multiplyScalar(0.5); rail.rotation.y = -Math.atan2(direction.z, direction.x);
+      });
+    }
+    return group;
   }
 
   private pick(event: PointerEvent): void { this.setRay(event); const hit = this.raycaster.intersectObjects([...this.visuals.values()], true)[0]; this.selectedId = hit ? this.objectIds.get(hit.object) : undefined; this.rebuild(); this.showProperties(); }
@@ -127,7 +146,6 @@ export class SectorEditor {
   private templateName(): string { return (document.getElementById('template-name') as HTMLInputElement | null)?.value.trim() || 'secteur'; }
   private worldPoint(x: number, y: number, height: number): THREE.Vector3 { return new THREE.Vector3((x - 360) / 45, height, (y - 540) / 50); }
   private snap(value: number): number { return Math.round(value / 20) * 20; }
-  private neon(color: number): THREE.MeshStandardMaterial { return new THREE.MeshStandardMaterial({ color: 0x101820, emissive: color, emissiveIntensity: 1.25, metalness: 0.5, roughness: 0.28 }); }
-  private resize(): void { const width = this.root.clientWidth; const height = this.root.clientHeight; this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height); this.render(); }
+  private resize(): void { const width = Math.max(1, this.root.clientWidth - (this.root.querySelector('.editor-panel')?.getBoundingClientRect().width ?? 300)); const height = this.root.clientHeight; this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height); this.render(); }
   private render(): void { this.renderer.render(this.scene, this.camera); }
 }
