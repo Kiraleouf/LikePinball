@@ -90,3 +90,7 @@ kbd { padding: 2px 4px; border: 1px solid rgba(121,174,187,.35); border-radius: 
   .editor-panel { width: 240px; padding: 14px; }
   .editor-mode canvas { margin-left: 240px; width: calc(100% - 240px) !important; }
 }
+
+.editor-panel .bounds-warning { border: 1px solid #a77625; background: #21190d; color: #ffd27b; padding: 12px; margin: 0 20px 16px; }
+.editor-panel .bounds-warning p { color: #e3c69a; }
+.editor-panel .bounds-warning button { color: #ffd27b; border-color: #765b2d; width: 100%; overflow-wrap: anywhere; margin-top: 6px; }

@@ -185,7 +185,7 @@ La run prend une copie du catalogue au départ. À chaque génération du secteu
 
 Le lanceur occupe un couloir structurel à droite de la largeur jouable. La bille part devant le piston, remonte réellement le couloir et suit le guide arrondi pour rejoindre le haut du secteur 0. La barrière anti-retour se ferme après le passage complet de la bille. Un lancement qui retombe dans le couloir est préparé à nouveau sans consommer de bille ; le drain reste dans la zone principale.
 
-`src/three/machine.ts` définit cette structure une seule fois pour le jeu et le contexte du Sector Lab. Aucun couloir n'est intégré aux templates. Toute la largeur du plateau est disponible pour les composants ; le Lab refuse la sauvegarde d'un élément du secteur 0 dépassant dans le couloir. La puissance reste réglée par la durée de maintien d'Espace.
+`src/three/machine.ts` définit cette structure une seule fois pour le jeu et le contexte du Sector Lab. Aucun couloir n'est intégré aux templates. Toute la largeur du plateau est disponible pour les composants ; le Lab signale les dépassements à gauche, à droite (dont le couloir), en haut et en bas par un avertissement non bloquant. La sauvegarde conserve les positions exactes et les limites physiques restent fixes. La puissance reste réglée par la durée de maintien d'Espace.
 
 ### Bumpers actifs
 

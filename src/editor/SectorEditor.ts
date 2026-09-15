@@ -1,4 +1,5 @@
 import { LAUNCHER, launcherStructure, rightBoundary } from '../three/machine';
+import { elementBounds, overflowSides } from './bounds';
 import { createGameLighting } from '../three/components/lighting';
 import { flipperYaw } from '../config/physics3d';
 import { createComponent, readPresets, resolveParams, type Component3D } from '../three/components';
@@ -82,6 +83,7 @@ export class SectorEditor {
       <section><label>TEMPLATE ACTIF<select id="template-list"></select></label><button id="open-initial">OUVRIR LE SECTEUR 0</button><label>NOM DU TEMPLATE<input id="template-name" value="Nouveau secteur"></label><label>INDEX FIXE (VIDE = GÉNÉRIQUE)<input id="sector-index" type="number" min="0" step="1" placeholder="Générique"></label><p id="template-context"></p></section>
       <section><span class="panel-label">AJOUTER</span><div class="tool-grid"><button data-add="bumper">BUMPER</button><button data-add="flipper">FLIPPER</button><button data-add="post">POST</button><button data-add="slingshot">SLINGSHOT</button><button data-add="wall">MUR</button><button data-add="obstacle">OBSTACLE</button><button data-add="rail">RAIL</button></div><label>ÉLÉMENT<select id="element-list"></select></label></section>
       <section id="properties"><span class="panel-label">PROPRIÉTÉS</span><p>Sélectionne un élément sur le plateau.</p></section>
+      <section id="bounds-warning" class="bounds-warning" role="status" aria-label="Dépassements du plateau" hidden></section>
       <section class="editor-actions"><button id="apply-initial" class="primary">SAUVEGARDER POUR LES RUNS</button><button id="remove-template">RETIRER DES RUNS</button><button id="new-template">NOUVEAU</button><button id="load-template">CHARGER</button><button id="save-template">EXPORTER JSON</button><button id="test-template">TESTER LE SECTEUR</button><input id="template-file" type="file" accept="application/json,.json" hidden><p role="status" id="editor-status"></p></section>
       <footer><span class="connection-key"></span> ZONES DE CONNEXION · SNAP 20 PX</footer>`;
     panel.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((button) => button.addEventListener('click', () => this.add(button.dataset.add as EditableElement['kind'])));
@@ -131,7 +133,22 @@ export class SectorEditor {
       visual.traverse((object) => this.objectIds.set(object, element.id)); this.visuals.set(element.id, visual); this.scene.add(visual);
       if (element.id === this.selectedId) { this.selectionBox = new THREE.BoxHelper(visual, 0xffbd35); this.scene.add(this.selectionBox); }
     }
-    this.render();
+    this.updateBoundsWarning(); this.render();
+  }
+
+  private updateBoundsWarning(): void {
+    const host = document.getElementById('bounds-warning')!;
+    const outside = [...this.visuals].map(([id, visual]) => ({ id, sides: overflowSides(elementBounds(visual)) })).filter(item => item.sides.length);
+    host.hidden = !outside.length; host.replaceChildren();
+    if (!outside.length) return;
+    const title = document.createElement('strong'); title.textContent = `Hors plateau · ${outside.length} élément(s)`;
+    const help = document.createElement('p'); help.textContent = 'Sauvegarde autorisée. Les positions et les limites du plateau restent inchangées.';
+    host.append(title, help);
+    for (const { id, sides } of outside) {
+      const button = document.createElement('button'); button.textContent = `${id} · ${sides.join(', ')}`;
+      button.onclick = () => { this.selectedId = id; this.rebuild(); this.showProperties(); };
+      host.append(button);
+    }
   }
 
   private createVisual(element: EditableElement): THREE.Object3D {
@@ -227,7 +244,6 @@ export class SectorEditor {
     const input = document.getElementById('sector-index') as HTMLInputElement;
     const sectorIndex = this.editingInitial ? 0 : input.value === '' ? undefined : input.valueAsNumber;
     if (input.validity.badInput || (sectorIndex !== undefined && (!Number.isSafeInteger(sectorIndex) || sectorIndex < 0))) throw new Error('L’index doit être un entier positif ou nul, ou rester vide.');
-    if (this.editingInitial && [...this.visuals.values()].some(visual => new THREE.Box3().setFromObject(visual).max.x > 5.57)) throw new Error('Un élément dépasse la limite droite du plateau. Replacer sa géométrie dans la zone jouable avant de sauvegarder.');
     const json = serializeTemplate(this.toSector(), { ...this.metadata, sectorIndex }); parseTemplate(json); return json;
   }
   private save(): void {
