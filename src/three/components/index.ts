@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { PHYSICS_3D, flipperYaw, approachAngle } from '../../config/physics3d';
 import { resolveParams, type ComponentKind, type VisualParams } from './presets';
 export * from './presets';
 
@@ -112,6 +113,7 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
     for (const x of [-w * 0.46, w * 0.46]) box(w * 0.08, h * 0.9, d * 1.1, metal, x, -h * 0.08);
   }
   let state: VisualState = 'Idle'; let elapsed = 0; let amount = 0;
+  let flipperAngle = 0.18;
   return { root, size, collider,
     setState(value) { if (!states[kind].includes(value) || (state === value && value !== 'Hit')) return; state = value; elapsed = 0; },
     setAmount(value) { amount = THREE.MathUtils.clamp(value, 0, 1); },
@@ -121,7 +123,7 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
       if (ballMaterial) ballMaterial.emissiveIntensity = p.emissiveIntensity * (0.06 + pulse * 0.4);
       if (kind === 'flipper') neon.emissiveIntensity += state === 'Activate' ? p.emissiveIntensity * 0.5 : 0;
       // In the game Rapier supplies the root pose; the showroom previews the same rest/active angles.
-      if (kind === 'flipper' && !options.externalPose) root.rotation.y = (state === 'Activate' ? -0.62 : 0.18) * (options.side === 'right' ? -1 : 1);
+      if (kind === 'flipper' && !options.externalPose) { flipperAngle = approachAngle(flipperAngle, state === 'Activate' ? -0.62 : 0.18, state === 'Activate' ? PHYSICS_3D.flipperAngularSpeed : PHYSICS_3D.flipperReturnSpeed, delta); root.rotation.y = flipperYaw(flipperAngle) * (options.side === 'right' ? -1 : 1); }
       if (kind === 'bumper') animated.position.y = -pulse * h * 0.12;
       if (kind === 'launcher') animated.position.z = (state === 'Activate' ? amount : 0) * d * 0.22 - pulse * d * 0.08;
       if (kind === 'gate') animated.rotation.z = THREE.MathUtils.damp(animated.rotation.z, state === 'Activate' ? Math.PI / 2 : 0, 18, delta);

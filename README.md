@@ -38,6 +38,10 @@ Les formats des templates de secteurs existants restent inchangés. La palette d
 
 Vérifications : `npm run typecheck`, `npm test`, `npm run build`, puis showroom, éditeur et jeu dans le navigateur.
 
+### Calibration physique 3D
+
+Les réglages sont regroupés dans `src/config/physics3d.ts` : pente de 0,18 rad, gravité de 30 unités/s², faible amortissement et plafond de vitesse de 34 unités/s. La bille accélère sous la gravité du plateau incliné ; aucune vitesse de descente constante n’est imposée. Rapier avance par pas de 1/120 s, indépendamment du rendu. Les flippers ont une course bornée en vitesse, et leurs angles de template sont convertis du repère écran vers le repère 3D.
+
 L'idée centrale est simple : **jouer au flipper, atteindre l'objectif de score du plateau, ouvrir un portail vers le plateau suivant et aller le plus loin possible avant de perdre toutes ses billes.**
 
 Le jeu doit privilégier le feeling du flipper avant toute autre mécanique.

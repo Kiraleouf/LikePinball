@@ -1,4 +1,5 @@
 import { createGameLighting } from '../three/components/lighting';
+import { flipperYaw } from '../config/physics3d';
 import { createComponent, readPresets, resolveParams, type Component3D } from '../three/components';
 import * as THREE from 'three';
 import type { BumperDefinition, FlipperDefinition, RailDefinition, SectorDefinition, WallDefinition } from '../tables/types';
@@ -107,7 +108,7 @@ export class SectorEditor {
     if (element.kind === 'bumper') {
       const radius = element.radius / 48; add('bumper', { size: { x: radius * 2, y: 1.2, z: radius * 2 } }); group.position.copy(this.worldPoint(element.x, element.y, 0.62));
     } else if (element.kind === 'flipper') {
-      add('flipper', { side: element.side, externalPose: true }); group.rotation.y = element.restAngle; group.position.copy(this.worldPoint(element.x, element.y, 0.55));
+      add('flipper', { side: element.side, externalPose: true }); group.rotation.y = flipperYaw(element.restAngle); group.position.copy(this.worldPoint(element.x, element.y, 0.55));
     } else if (element.kind === 'obstacle') {
       add('wall', { size: { x: element.width / 45, y: 0.72, z: element.height / 40 } }); group.rotation.y = -(element.angle ?? 0); group.position.copy(this.worldPoint(element.x, element.y, 0.36));
     } else {

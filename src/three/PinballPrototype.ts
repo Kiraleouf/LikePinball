@@ -1,4 +1,5 @@
 import { createGameLighting } from './components/lighting';
+import { PHYSICS_3D, approachAngle, flipperYaw } from '../config/physics3d';
 import { createComponent, readPresets, resolveParams, type Component3D, type ComponentKind, type ComponentOptions } from './components';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
@@ -13,9 +14,9 @@ import { createRunSeed, generateSector, generateWorld } from '../tables';
 import type { FlipperDefinition, Point, SectorDefinition, WallDefinition } from '../tables/types';
 
 interface PhysicsMesh { readonly body: RAPIER.RigidBody; readonly mesh: THREE.Object3D; readonly visual?: Component3D }
-interface Flipper3D { readonly body: RAPIER.RigidBody; readonly visual: Component3D; readonly side: 'left' | 'right'; readonly rest: number; readonly active: number }
+interface Flipper3D { readonly body: RAPIER.RigidBody; readonly visual: Component3D; readonly side: 'left' | 'right'; readonly rest: number; readonly active: number; angle: number }
 
-const TILT = 0.11;
+const TILT = PHYSICS_3D.tilt;
 const SECTOR_LENGTH = 20;
 const CYAN = 0x35e7ff;
 const GRAPHITE = 0x101820;
@@ -55,6 +56,7 @@ export class PinballPrototype {
   private hasStarted = false;
   private gameOverShown = false;
   private lastTime = performance.now();
+  private accumulator = 0;
   private readonly baseCameraPosition = new THREE.Vector3(0, 14, 21);
   private readonly baseCameraTarget = new THREE.Vector3();
   private readonly cameraTarget = new THREE.Vector3();
@@ -77,7 +79,7 @@ export class PinballPrototype {
 
   public async start(): Promise<void> {
     await RAPIER.init();
-    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    this.world = new RAPIER.World({ x: 0, y: -PHYSICS_3D.gravity, z: 0 });
     this.eventQueue = new RAPIER.EventQueue(true);
     this.createScene();
     this.sectors.forEach((sector) => this.createSector(sector));
@@ -116,9 +118,9 @@ export class PinballPrototype {
   }
 
   private createBase(): void {
-    // Anchors are the former resting hub positions, preserving the central drain clearance.
-    this.addFlipper('main-left', -3.085, 6.37, 'left', 0.18, -0.62);
-    this.addFlipper('main-right', 3.085, 6.37, 'right', -0.18, 0.62);
+    // Leave a full ball diameter between the right hub and the launcher wall.
+    this.addFlipper('main-left', -2.65, 6.37, 'left', 0.18, -0.62);
+    this.addFlipper('main-right', 2.65, 6.37, 'right', -0.18, 0.62);
     this.addFixedBox('couloir-interieur', 4.05, 3.7, 0.45, 0.12, 5.6, 0.62, CYAN);
     this.launcherVisual = this.component('launcher');
     const plunger = this.launcherVisual.root;
@@ -138,9 +140,9 @@ export class PinballPrototype {
   private createBall(): void {
     const world = this.requireWorld();
     const position = this.launchPosition();
-    const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setCcdEnabled(true));
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setCcdEnabled(true).setLinearDamping(PHYSICS_3D.linearDamping));
     this.ballVisual = this.component('ball');
-    const collider = world.createCollider(this.collider(this.ballVisual).setRestitution(0.72).setFriction(0.08)
+    const collider = world.createCollider(this.collider(this.ballVisual).setRestitution(PHYSICS_3D.ballRestitution).setFriction(PHYSICS_3D.ballFriction)
       .setDensity(1.2).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
     const mesh = this.ballVisual.root;
     mesh.castShadow = true; this.scene.add(mesh); this.moving.push({ body, mesh }); this.ball = body; this.ballCollider = collider;
@@ -181,7 +183,7 @@ export class PinballPrototype {
     const visual = this.component('flipper', { side, externalPose: true });
     const collider = world.createCollider(this.collider(visual).setRestitution(0.6), body); this.hitVisuals.set(collider.handle, visual);
     const mesh = visual.root; mesh.name = name;
-    this.scene.add(mesh); this.moving.push({ body, mesh }); this.flippers.push({ body, visual, side, rest, active });
+    this.scene.add(mesh); this.moving.push({ body, mesh }); this.flippers.push({ body, visual, side, rest, active, angle: rest });
   }
 
   private addSectorGate(sector: number): void {
@@ -223,18 +225,25 @@ export class PinballPrototype {
 
   private update(time: number): void {
     const world = this.world; if (!world) return;
-    const delta = Math.min((time - this.lastTime) / 1_000, 1 / 30); this.lastTime = time; world.timestep = delta;
+    const delta = Math.min(Math.max(0, (time - this.lastTime) / 1_000), PHYSICS_3D.maxFrameTime); this.lastTime = time;
     this.charge.update(delta * 1_000);
     if (this.charge.active) this.launcherVisual?.setState('Activate');
     this.launcherVisual?.setAmount(this.charge.value);
     this.components.forEach(component => component.update(delta));
     const left = this.keys.has('ArrowLeft') || this.keys.has('KeyQ'); const right = this.keys.has('ArrowRight') || this.keys.has('KeyD');
-    this.flippers.forEach(flipper => {
+    this.accumulator += delta;
+    while (this.accumulator >= PHYSICS_3D.timestep) {
+      world.timestep = PHYSICS_3D.timestep;
+      this.flippers.forEach(flipper => {
       const active = flipper.side === 'left' ? left : right;
       flipper.visual.setState(active ? 'Activate' : 'Idle');
-      flipper.body.setNextKinematicRotation(this.flipperRotation(active ? flipper.active : flipper.rest));
+      flipper.angle = approachAngle(flipper.angle, active ? flipper.active : flipper.rest, active ? PHYSICS_3D.flipperAngularSpeed : PHYSICS_3D.flipperReturnSpeed, PHYSICS_3D.timestep);
+      flipper.body.setNextKinematicRotation(this.flipperRotation(flipper.angle));
     });
-    world.step(this.eventQueue); this.handleCollisions();
+      world.step(this.eventQueue); this.handleCollisions();
+      if (this.ball) { const velocity = this.ball.linvel(); const speed = Math.hypot(velocity.x, velocity.y, velocity.z); if (speed > PHYSICS_3D.maxBallSpeed) { const scale = PHYSICS_3D.maxBallSpeed / speed; this.ball.setLinvel({ x: velocity.x * scale, y: velocity.y * scale, z: velocity.z * scale }, true); } }
+      this.accumulator -= PHYSICS_3D.timestep;
+    }
     for (const { body, mesh } of this.moving) { const p = body.translation(); const r = body.rotation(); mesh.position.set(p.x, p.y, p.z); mesh.quaternion.set(r.x, r.y, r.z, r.w); }
     if (this.ball) this.updateBall(delta);
     this.updateHud(); this.renderer.render(this.scene, this.camera);
@@ -295,7 +304,7 @@ export class PinballPrototype {
     this.launcherVisual?.setState('Hit');
     this.ball.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
     this.ball.setTranslation(this.onBoard(3.45, 4.45, 0.72), true);
-    const velocity = new THREE.Vector3(-4, 0, -18 - power * 25).applyQuaternion(this.boardRotation);
+    const velocity = new THREE.Vector3(-4, 0, -PHYSICS_3D.launchMinSpeed - power * PHYSICS_3D.launchExtraSpeed).applyQuaternion(this.boardRotation);
     this.ball.setLinvel(velocity, true); this.ballLeftStart = true; this.closeLauncherGate();
   }
 
@@ -388,7 +397,7 @@ export class PinballPrototype {
   private mapZ(sector: number, y: number): number { return (y - 540) / 50 - sector * SECTOR_LENGTH; }
   private onBoard(x: number, z: number, height: number): THREE.Vector3 { return new THREE.Vector3(x, height, z).applyQuaternion(this.boardRotation); }
   private toBoard(position: RAPIER.Vector): THREE.Vector3 { return new THREE.Vector3(position.x, position.y, position.z).applyQuaternion(this.boardRotation.clone().invert()); }
-  private flipperRotation(yaw: number): THREE.Quaternion { return this.boardRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw)); }
+  private flipperRotation(yaw: number): THREE.Quaternion { return this.boardRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), flipperYaw(yaw))); }
   private resize(): void { const width = this.root.clientWidth; const height = this.root.clientHeight; this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height); }
   private requireWorld(): RAPIER.World { if (!this.world) throw new Error('Monde Rapier non initialisé'); return this.world; }
 }
