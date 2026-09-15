@@ -1,92 +1,63 @@
 import { BACKGROUND_COLOR } from '../config/game';
-import type { BumperDefinition, FlipperDefinition, RailDefinition, SectorDefinition, WallDefinition, WorldDefinition } from './types';
+import { parseTemplate, type SectorTemplateFile, type VariationSlot } from '../editor/template';
+import neonOrbit from './templates/neon-orbit.sector.json';
+import splitLane from './templates/split-lane.sector.json';
+import type { BumperDefinition, FlipperDefinition, SectorDefinition, WallDefinition, WorldDefinition } from './types';
 
-const COLORS = [0xff3bc8, 0xffbd35, 0x35e7ff] as const;
+const TEMPLATE_POOL: readonly SectorTemplateFile[] = [neonOrbit, splitLane].map((value) => parseTemplate(JSON.stringify(value)));
 
 function hashSeed(seed: string): number {
   let hash = 2_166_136_261;
-  for (const character of seed) {
-    hash ^= character.charCodeAt(0);
-    hash = Math.imul(hash, 16_777_619);
-  }
+  for (const character of seed) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16_777_619); }
   return hash >>> 0;
 }
 
 function randomFrom(seed: string): () => number {
   let value = hashSeed(seed);
-  return () => {
-    value += 0x6d2b79f5;
-    let result = value;
-    result = Math.imul(result ^ result >>> 15, result | 1);
-    result ^= result + Math.imul(result ^ result >>> 7, result | 61);
-    return ((result ^ result >>> 14) >>> 0) / 4_294_967_296;
+  return () => { value += 0x6d2b79f5; let result = value; result = Math.imul(result ^ result >>> 15, result | 1); result ^= result + Math.imul(result ^ result >>> 7, result | 61); return ((result ^ result >>> 14) >>> 0) / 4_294_967_296; };
+}
+
+function chooseTemplate(random: () => number): SectorTemplateFile {
+  const total = TEMPLATE_POOL.reduce((sum, template) => sum + template.metadata.weight, 0); let choice = random() * total;
+  for (const template of TEMPLATE_POOL) { choice -= template.metadata.weight; if (choice <= 0) return template; }
+  return TEMPLATE_POOL[TEMPLATE_POOL.length - 1];
+}
+
+function slotFor(template: SectorTemplateFile, elementId: string): VariationSlot | undefined { return template.metadata.variationSlots.find((slot) => slot.elementId === elementId); }
+function offset(value: number, maximum: number | undefined, random: () => number): number { return maximum ? value + Math.round((random() * 2 - 1) * maximum) : value; }
+
+function varyBumper(bumper: BumperDefinition, template: SectorTemplateFile, random: () => number, id: number): BumperDefinition {
+  const slot = slotFor(template, bumper.id); const scores = slot?.scoreMultipliers; const multiplier = scores?.[Math.floor(random() * scores.length)] ?? 1;
+  return { ...bumper, id: `s${id}-${bumper.id}`, x: offset(bumper.x, slot?.maxOffsetX, random), y: offset(bumper.y, slot?.maxOffsetY, random), score: Math.round(bumper.score * multiplier) };
+}
+
+function varyObstacle(obstacle: WallDefinition, index: number, template: SectorTemplateFile, random: () => number): WallDefinition {
+  const slot = slotFor(template, `obstacle:${index}`); return { ...obstacle, angle: (obstacle.angle ?? 0) + (slot?.angleRange ? (random() * 2 - 1) * slot.angleRange : 0) };
+}
+
+function assembleSector(seed: string, id: number): SectorDefinition {
+  const random = randomFrom(`${seed}:sector:${id}`); const template = chooseTemplate(random); const optional = new Set(template.metadata.optionalElementIds);
+  const enabled = (elementId: string): boolean => !optional.has(elementId) || random() >= 0.42;
+  const bumpers = template.sector.bumpers.filter((bumper) => enabled(bumper.id)).map((bumper) => varyBumper(bumper, template, random, id));
+  const flippers: FlipperDefinition[] = id === 0 ? [] : template.sector.flippers.map((flipper) => ({ ...flipper, id: `s${id}-${flipper.id}` }));
+  return {
+    ...template.sector,
+    id,
+    name: `${template.sector.name} · ${id + 1}`,
+    offsetY: -id * 1_000,
+    bumpers,
+    rails: template.sector.rails.map((rail) => ({ ...rail, id: `s${id}-${rail.id}`, points: rail.points.map((point) => ({ ...point })) })),
+    obstacles: template.sector.obstacles.map((obstacle, index) => varyObstacle(obstacle, index, template, random)),
+    flippers,
   };
 }
 
-function shuffled<T>(values: readonly T[], random: () => number): T[] {
-  const result = [...values];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(random() * (index + 1));
-    [result[index], result[swap]] = [result[swap], result[index]];
-  }
-  return result;
-}
-
-function buildSector(id: number, random: () => number): SectorDefinition {
-  const bumperSlots = shuffled([
-    { x: 205, y: 330 }, { x: 360, y: 390 }, { x: 505, y: 330 },
-    { x: 235, y: 570 }, { x: 475, y: 590 }, { x: 350, y: 700 },
-  ], random).slice(0, 2 + Math.floor(random() * 2));
-  const bumpers: BumperDefinition[] = bumperSlots.map((point, index) => ({
-    id: `s${id}-bumper-${index}`, ...point, radius: 32 + Math.floor(random() * 8),
-    score: 1_250 + id * 500, color: COLORS[Math.floor(random() * COLORS.length)],
-  }));
-  const mirror = random() > 0.5;
-  const rails: RailDefinition[] = [
-    { id: `s${id}-guide-a`, thickness: 11, color: COLORS[id % COLORS.length], points: [
-      { x: mirror ? 140 : 580, y: 220 }, { x: mirror ? 155 : 565, y: 310 }, { x: mirror ? 140 : 580, y: 420 },
-    ] },
-    { id: `s${id}-guide-b`, thickness: 11, color: COLORS[(id + 1) % COLORS.length], points: [
-      { x: mirror ? 580 : 140, y: 650 }, { x: mirror ? 540 : 180, y: 735 },
-    ] },
-  ];
-  const obstacles: WallDefinition[] = [{
-    x: 360, y: 810, width: 90, height: 14, angle: random() > 0.5 ? 0.12 : -0.12,
-  }];
-  const flippers: FlipperDefinition[] = [];
-  if (id > 0) {
-    const pattern = Math.floor(random() * 3);
-    if (pattern !== 1) flippers.push({ id: `s${id}-left`, side: 'left', x: 170, y: pattern === 2 ? 850 : 875, restAngle: 0.26, activeAngle: -0.62 });
-    if (pattern !== 0) flippers.push({ id: `s${id}-right`, side: 'right', x: 550, y: pattern === 2 ? 900 : 875, restAngle: -0.26, activeAngle: 0.62 });
-  }
-  const walls: WallDefinition[] = [
-    { x: 100, y: 540, width: 28, height: 920 },
-    { x: 620, y: 540, width: 28, height: 920 },
-  ];
-  if (id === 0) walls.push(
-    { x: 550, y: 670, width: 18, height: 690 },
-    { x: 195, y: 980, width: 235, height: 28, angle: 0.18 },
-    { x: 525, y: 980, width: 235, height: 28, angle: -0.18 },
-  );
-  return { id, name: `Secteur ${id}`, offsetY: -id * 1_000, walls, bumpers, rails, obstacles, flippers };
-}
-
-export function generateSector(seed: string, id: number): SectorDefinition {
-  return buildSector(id, randomFrom(`${seed}:sector:${id}`));
-}
+export function generateSector(seed: string, id: number): SectorDefinition { return assembleSector(seed, id); }
 
 export function generateWorld(seed: string, sectorCount = 2): WorldDefinition {
-  return {
-    backgroundColor: BACKGROUND_COLOR,
-    spawn: { x: 585, y: 940 },
-    drain: { x: 360, y: 1060, width: 260, height: 40 },
-    safetyPost: { x: 360, y: 962, radius: 11 },
-    sectors: Array.from({ length: sectorCount }, (_, id) => generateSector(seed, id)),
-  };
+  return { backgroundColor: BACKGROUND_COLOR, spawn: { x: 585, y: 940 }, drain: { x: 360, y: 1060, width: 260, height: 40 }, safetyPost: { x: 360, y: 962, radius: 11 }, sectors: Array.from({ length: sectorCount }, (_, id) => generateSector(seed, id)) };
 }
 
-export function createRunSeed(): string {
-  return new URLSearchParams(window.location.search).get('seed') ?? crypto.randomUUID().slice(0, 8);
-}
-
+export function createRunSeed(): string { return new URLSearchParams(window.location.search).get('seed') ?? crypto.randomUUID().slice(0, 8); }
 export const worldY = (localY: number, offsetY: number): number => localY + offsetY;
+export const availableTemplateIds = (): readonly string[] => TEMPLATE_POOL.map((template) => template.metadata.id);

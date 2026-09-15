@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PHYSICS } from '../config/physics';
-import { generateWorld, worldY } from '.';
+import { availableTemplateIds, generateWorld, worldY } from '.';
 
 const WORLD = generateWorld('test-seed');
 
@@ -36,6 +36,13 @@ describe('monde vertical', () => {
   it('reproduit exactement une géométrie avec le même seed', () => {
     expect(generateWorld('debug-42')).toEqual(generateWorld('debug-42'));
     expect(generateWorld('debug-42').sectors).not.toEqual(generateWorld('autre-run').sectors);
+  });
+
+  it('assemble les runs depuis un pool extensible de templates', () => {
+    expect(availableTemplateIds()).toEqual(['neon-orbit', 'split-lane']);
+    const names = Array.from({ length: 12 }, (_, index) => generateWorld(`pool-${index}`, 4).sectors.map((sector) => sector.name)).flat();
+    expect(names.some((name) => name.startsWith('Neon Orbit'))).toBe(true);
+    expect(names.some((name) => name.startsWith('Split Lane'))).toBe(true);
   });
 
   it('préserve le socle inférieur entre les runs', () => {

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "metadata": {
+    "id": "neon-orbit",
+    "tags": ["balanced", "orbit"],
+    "weight": 1,
+    "connections": { "top": true, "bottom": true },
+    "optionalElementIds": ["orbit-bonus"],
+    "variationSlots": [
+      { "elementId": "orbit-left", "maxOffsetX": 12, "maxOffsetY": 14, "scoreMultipliers": [1, 1.25] },
+      { "elementId": "orbit-right", "maxOffsetX": 12, "maxOffsetY": 14, "scoreMultipliers": [1, 1.25] },
+      { "elementId": "obstacle:0", "angleRange": 0.08 }
+    ]
+  },
+  "sector": {
+    "id": 0,
+    "name": "Neon Orbit",
+    "offsetY": 0,
+    "walls": [{ "x": 100, "y": 540, "width": 28, "height": 920 }, { "x": 620, "y": 540, "width": 28, "height": 920 }],
+    "bumpers": [
+      { "id": "orbit-left", "x": 235, "y": 430, "radius": 36, "score": 1250, "color": 3532799 },
+      { "id": "orbit-right", "x": 485, "y": 430, "radius": 36, "score": 1250, "color": 16726984 },
+      { "id": "orbit-bonus", "x": 360, "y": 620, "radius": 33, "score": 1750, "color": 16760117 }
+    ],
+    "rails": [
+      { "id": "orbit-rail-left", "points": [{ "x": 145, "y": 240 }, { "x": 165, "y": 350 }, { "x": 145, "y": 470 }], "thickness": 11, "color": 3532799 },
+      { "id": "orbit-rail-right", "points": [{ "x": 575, "y": 620 }, { "x": 535, "y": 730 }], "thickness": 11, "color": 16726984 }
+    ],
+    "obstacles": [{ "x": 360, "y": 805, "width": 100, "height": 14, "angle": 0.1 }],
+    "flippers": [{ "id": "orbit-flipper", "side": "left", "x": 190, "y": 875, "restAngle": 0.26, "activeAngle": -0.62 }]
+  }
+}
