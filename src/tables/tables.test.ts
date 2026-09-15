@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PHYSICS } from '../config/physics';
 import { getTable } from '.';
 
 describe('définitions de plateaux', () => {
@@ -28,5 +29,13 @@ describe('définitions de plateaux', () => {
       expect(table.safetyPost.radius).toBeLessThan(16);
       expect(table.drain.width / 2 - table.safetyPost.radius).toBeGreaterThan(100);
     }
+  });
+
+  it('ferme toute la largeur du couloir avec la barrière anti-retour', () => {
+    const { gate } = PHYSICS.launcher;
+
+    expect(gate.antiReturn.x).toBe(gate.x);
+    expect(gate.antiReturn.width).toBeGreaterThanOrEqual(gate.width);
+    expect(gate.antiReturn.height).toBeGreaterThanOrEqual(PHYSICS.ball.radius);
   });
 });

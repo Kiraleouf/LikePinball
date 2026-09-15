@@ -49,6 +49,12 @@ export const PHYSICS = {
       height: 10,
       angle: -0.36,
       closeWhenBallXBelow: 520,
+      antiReturn: {
+        x: 585,
+        y: 312,
+        width: 92,
+        height: 18,
+      },
     },
   },
   bumper: {
