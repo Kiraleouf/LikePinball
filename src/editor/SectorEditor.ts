@@ -31,7 +31,8 @@ export class SectorEditor {
   private readonly objectIds = new Map<THREE.Object3D, string>();
   private readonly components: Component3D[] = [];
   private readonly visualPresets = readPresets();
-  private selectionBox?: THREE.BoxHelper;
+  private selectionBox?: THREE.Box3Helper;
+  private readonly bounds = new Map<string, THREE.Box3>();
   private readonly visuals = new Map<string, THREE.Object3D>();
   private elements: EditableElement[] = [];
   private selectedId?: string;
@@ -123,7 +124,7 @@ export class SectorEditor {
     if (this.selectionBox) { this.selectionBox.removeFromParent(); this.selectionBox.geometry.dispose(); (this.selectionBox.material as THREE.Material).dispose(); this.selectionBox = undefined; }
     this.components.forEach(component => component.dispose()); this.components.length = 0;
     for (const visual of this.visuals.values()) visual.removeFromParent();
-    this.visuals.clear(); this.objectIds.clear();
+    this.visuals.clear(); this.objectIds.clear(); this.bounds.clear();
     const list = document.getElementById('element-list') as HTMLSelectElement;
     list.replaceChildren(new Option('Sélectionner…', ''), ...this.elements.map(element => new Option(`${element.kind} · ${element.id}`, element.id)));
     list.value = this.selectedId ?? '';
@@ -131,14 +132,15 @@ export class SectorEditor {
     for (const element of this.elements) {
       const visual = this.createVisual(element); visual.userData.selected = element.id === this.selectedId;
       visual.traverse((object) => this.objectIds.set(object, element.id)); this.visuals.set(element.id, visual); this.scene.add(visual);
-      if (element.id === this.selectedId) { this.selectionBox = new THREE.BoxHelper(visual, 0xffbd35); this.scene.add(this.selectionBox); }
+      const bounds = elementBounds(visual); this.bounds.set(element.id, bounds);
+      if (element.id === this.selectedId) { this.selectionBox = new THREE.Box3Helper(bounds, 0xffbd35); this.scene.add(this.selectionBox); }
     }
     this.updateBoundsWarning(); this.render();
   }
 
   private updateBoundsWarning(): void {
     const host = document.getElementById('bounds-warning')!;
-    const outside = [...this.visuals].map(([id, visual]) => ({ id, sides: overflowSides(elementBounds(visual)) })).filter(item => item.sides.length);
+    const outside = [...this.bounds].map(([id, bounds]) => ({ id, sides: overflowSides(bounds) })).filter(item => item.sides.length);
     host.hidden = !outside.length; host.replaceChildren();
     if (!outside.length) return;
     const title = document.createElement('strong'); title.textContent = `Hors plateau · ${outside.length} élément(s)`;

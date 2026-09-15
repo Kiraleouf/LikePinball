@@ -2,7 +2,11 @@ import { Box3, type Object3D } from 'three';
 
 /** Editor limits only: diagnostics must never resize the physical board. */
 export const EDITOR_LIMITS = { left: -5.57, right: 5.57, top: -10, bottom: 10 } as const;
-export function elementBounds(visual: Object3D): Box3 { return new Box3().setFromObject(visual); }
+export function elementBounds(visual: Object3D): Box3 {
+  visual.updateWorldMatrix(true, true);
+  // Transform actual vertices, not the corners of each mesh's local bounding box.
+  return new Box3().setFromObject(visual, true);
+}
 export function overflowSides(bounds: Box3): string[] {
   if (bounds.isEmpty()) return [];
   const sides: string[] = [];

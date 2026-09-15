@@ -24,6 +24,28 @@ function fixture(faceAngle = 0, yaw = 0, width = 1, depth = 1) {
 }
 
 describe('shared slingshot geometry and physical activation', () => {
+  it.each([0, 45, 90, 135, -45, -90, -135])('keeps the physical active face aligned at a template rotation of %s degrees', degrees => {
+    const f = fixture(0.4, -degrees * Math.PI / 180, 1.3, 0.8);
+    try {
+      f.visual.root.quaternion.copy(f.rotation); f.visual.root.updateMatrixWorld(true);
+      const strip = f.visual.root.getObjectByName('elastic-band')!.children[1];
+      const normal = strip.getWorldDirection(new THREE.Vector3()).negate();
+      const center = strip.getWorldPosition(new THREE.Vector3());
+      f.ball.setTranslation(center.addScaledVector(normal, 0.8), true); f.ball.setLinvel(normal.clone().multiplyScalar(-8), true);
+      let hits = 0;
+      for (let i = 0; i < 120; i++) {
+        f.world.step();
+        if (f.contact.update(f.world, f.collider, f.ballCollider, f.face, i / 120)) {
+          hits++;
+          const impulseNormal = f.face.normal.clone().applyQuaternion(f.rotation);
+          expect(impulseNormal.dot(normal)).toBeCloseTo(1);
+          f.ball.applyImpulse(directionalImpulse(impulseNormal, f.ball.linvel(), f.ball.mass(), PHYSICS_3D.slingshotKickSpeed), true);
+          expect(normal.dot(f.ball.linvel())).toBeGreaterThan(10);
+        }
+      }
+      expect(hits).toBe(1);
+    } finally { f.dispose(); }
+  });
   it.each([0, 0.9, -2.4])('keeps the visible elastic face aligned with its collision face at %s radians', faceAngle => {
     const visual = createComponent('slingshot', { params: { ...defaultParams('slingshot'), faceAngle, width: 1.5, depth: 0.5 } });
     try {
