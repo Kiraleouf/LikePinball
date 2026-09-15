@@ -14,7 +14,8 @@ import { CameraSectorState } from '../gameplay/CameraSectorState';
 import { TableRenderer } from '../rendering/TableRenderer';
 import { LaunchGauge } from '../rendering/LaunchGauge';
 import { createRailSegments } from '../physics/railGeometry';
-import { WORLD, worldY } from '../tables';
+import { createRunSeed, generateWorld, worldY } from '../tables';
+import type { WorldDefinition } from '../tables/types';
 
 export class GameScene extends Phaser.Scene {
   private ball?: BallController;
@@ -36,7 +37,9 @@ export class GameScene extends Phaser.Scene {
   private sectorGates?: SectorGateController;
   private sectorText?: Phaser.GameObjects.Text;
   private sectorUnlocks = new SectorUnlockState(SECTOR_UNLOCK_SCORES);
-  private cameraSector = new CameraSectorState(WORLD.sectors.length, CAMERA.sectorHeight, CAMERA.seamY, CAMERA.engagement);
+  private seed = 'initial';
+  private world: WorldDefinition = generateWorld(this.seed);
+  private cameraSector = new CameraSectorState(this.world.sectors.length, CAMERA.sectorHeight, CAMERA.seamY, CAMERA.engagement);
 
   public constructor() {
     super('game');
@@ -46,17 +49,19 @@ export class GameScene extends Phaser.Scene {
     this.run = new RunState(STARTING_BALLS);
     this.score = new ScoreState();
     this.sectorUnlocks = new SectorUnlockState(SECTOR_UNLOCK_SCORES);
-    this.cameraSector = new CameraSectorState(WORLD.sectors.length, CAMERA.sectorHeight, CAMERA.seamY, CAMERA.engagement);
+    this.seed = createRunSeed();
+    this.world = generateWorld(this.seed);
+    this.cameraSector = new CameraSectorState(this.world.sectors.length, CAMERA.sectorHeight, CAMERA.seamY, CAMERA.engagement);
     this.bumpers.clear();
   }
 
   public create(): void {
-    this.cameras.main.setBackgroundColor(WORLD.backgroundColor);
+    this.cameras.main.setBackgroundColor(this.world.backgroundColor);
     this.cameras.main.setBounds(0, -3_000, 720, 4_080).setScroll(0, 0);
-    const renderer = new TableRenderer(this, WORLD);
+    const renderer = new TableRenderer(this, this.world);
     renderer.draw();
     this.createPhysics();
-    this.sectorGates = new SectorGateController(this, WORLD.sectors);
+    this.sectorGates = new SectorGateController(this, this.world.sectors);
     this.launcherGate = new LauncherGateController(this);
     this.createBumpers();
     const flipperTexture = renderer.createFlipperTexture();
@@ -106,6 +111,9 @@ export class GameScene extends Phaser.Scene {
     this.sectorText = this.add.text(108, 153, this.sectorProgressLabel(), {
       color: '#79aebb', fontFamily: 'monospace', fontSize: '12px', letterSpacing: 1,
     }).setDepth(4).setScrollFactor(0);
+    this.add.text(108, 174, `SEED  ${this.seed}`, {
+      color: '#406a74', fontFamily: 'monospace', fontSize: '10px', letterSpacing: 1,
+    }).setDepth(4).setScrollFactor(0);
 
     this.ballsText = this.add.text(612, 92, `BILLES  ${this.run.ballsRemaining}`, {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', letterSpacing: 2,
@@ -149,8 +157,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createPhysics(): void {
-    for (const sector of WORLD.sectors) {
-      for (const wall of sector.walls) {
+    for (const sector of this.world.sectors) {
+      for (const wall of [...sector.walls, ...sector.obstacles]) {
         this.matter.add.rectangle(wall.x, worldY(wall.y, sector.offsetY), wall.width, wall.height, {
           isStatic: true, angle: wall.angle ?? 0, restitution: PHYSICS.wall.restitution,
           friction: PHYSICS.wall.friction, label: `wall:sector-${sector.id}`,
@@ -167,10 +175,10 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
-    this.matter.add.rectangle(WORLD.drain.x, WORLD.drain.y, WORLD.drain.width, WORLD.drain.height, {
+    this.matter.add.rectangle(this.world.drain.x, this.world.drain.y, this.world.drain.width, this.world.drain.height, {
       isStatic: true, isSensor: true, label: 'drain',
     });
-    const post = WORLD.safetyPost;
+    const post = this.world.safetyPost;
     this.matter.add.circle(post.x, post.y, post.radius, {
       isStatic: true,
       restitution: PHYSICS.safetyPost.restitution,
@@ -180,7 +188,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createBumpers(): void {
-    for (const sector of WORLD.sectors) {
+    for (const sector of this.world.sectors) {
       for (const definition of sector.bumpers) {
         const bumper = new BumperController(this, { ...definition, y: worldY(definition.y, sector.offsetY) });
         this.bumpers.set(bumper.label, bumper);
@@ -241,7 +249,7 @@ export class GameScene extends Phaser.Scene {
     this.launcherGate?.openForLaunch();
     this.launchCharge.reset();
     this.launchGauge?.update(0);
-    this.ball = new BallController(this, WORLD.spawn, texture);
+    this.ball = new BallController(this, this.world.spawn, texture);
     this.stateText?.setVisible(true);
   }
 

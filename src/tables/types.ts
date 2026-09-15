@@ -13,6 +13,7 @@ export interface SectorDefinition {
   readonly walls: readonly WallDefinition[];
   readonly bumpers: readonly BumperDefinition[];
   readonly rails: readonly RailDefinition[];
+  readonly obstacles: readonly WallDefinition[];
 }
 
 export interface BumperDefinition extends Point { readonly id: string; readonly radius: number; readonly score: number; readonly color: number }

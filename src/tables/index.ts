@@ -1,75 +1,86 @@
 import { BACKGROUND_COLOR } from '../config/game';
-import type { WorldDefinition } from './types';
+import type { BumperDefinition, RailDefinition, SectorDefinition, WallDefinition, WorldDefinition } from './types';
 
-export const WORLD: WorldDefinition = {
-  backgroundColor: BACKGROUND_COLOR,
-  spawn: { x: 585, y: 940 },
-  drain: { x: 360, y: 1060, width: 260, height: 40 },
-  safetyPost: { x: 360, y: 962, radius: 11 },
-  sectors: [
-    {
-      id: 0, name: 'Secteur 0', offsetY: 0,
-      walls: [
-        { x: 100, y: 540, width: 28, height: 920 }, { x: 620, y: 540, width: 28, height: 920 },
-        { x: 550, y: 670, width: 18, height: 690 },
-        { x: 195, y: 980, width: 235, height: 28, angle: 0.18 }, { x: 525, y: 980, width: 235, height: 28, angle: -0.18 },
-      ],
-      bumpers: [
-        { id: 's0-left', x: 245, y: 390, radius: 42, score: 2_500, color: 0xff3bc8 },
-        { id: 's0-right', x: 455, y: 390, radius: 42, score: 2_500, color: 0xff3bc8 },
-        { id: 's0-center', x: 350, y: 550, radius: 38, score: 2_500, color: 0xffbd35 },
-      ],
-      rails: [
-        { id: 's0-upper-left', thickness: 12, color: 0x35e7ff, points: [{ x: 124, y: 330 }, { x: 135, y: 275 }, { x: 165, y: 225 }, { x: 215, y: 190 }] },
-        { id: 's0-upper-right', thickness: 12, color: 0x35e7ff, points: [{ x: 515, y: 190 }, { x: 535, y: 225 }, { x: 545, y: 270 }] },
-        { id: 's0-left-orbit', thickness: 11, color: 0x35e7ff, points: [{ x: 145, y: 505 }, { x: 155, y: 590 }, { x: 190, y: 675 }, { x: 235, y: 730 }] },
-        { id: 's0-right-orbit', thickness: 11, color: 0x35e7ff, points: [{ x: 515, y: 505 }, { x: 505, y: 590 }, { x: 480, y: 675 }, { x: 445, y: 730 }] },
-        { id: 's0-left-sling', thickness: 14, color: 0xff3bc8, points: [{ x: 155, y: 780 }, { x: 225, y: 850 }] },
-        { id: 's0-right-sling', thickness: 14, color: 0xff3bc8, points: [{ x: 515, y: 780 }, { x: 455, y: 850 }] },
-      ],
-    },
-    {
-      id: 1, name: 'Secteur 1', offsetY: -1_000,
-      walls: [
-        { x: 100, y: 540, width: 28, height: 920 }, { x: 620, y: 540, width: 28, height: 920 },
-      ],
-      bumpers: [
-        { id: 's1-left', x: 235, y: 465, radius: 40, score: 750, color: 0x35e7ff },
-        { id: 's1-right', x: 465, y: 465, radius: 40, score: 750, color: 0x35e7ff },
-      ],
-      rails: [
-        { id: 's1-chevron-left', thickness: 13, color: 0xffbd35, points: [{ x: 155, y: 265 }, { x: 260, y: 345 }, { x: 180, y: 650 }] },
-        { id: 's1-chevron-right', thickness: 13, color: 0xffbd35, points: [{ x: 515, y: 265 }, { x: 410, y: 345 }, { x: 490, y: 650 }] },
-      ],
-    },
-    {
-      id: 2, name: 'Secteur 2', offsetY: -2_000,
-      walls: [
-        { x: 100, y: 540, width: 28, height: 920 }, { x: 620, y: 540, width: 28, height: 920 },
-      ],
-      bumpers: [
-        { id: 's2-left', x: 210, y: 430, radius: 36, score: 1_500, color: 0xffbd35 },
-        { id: 's2-right', x: 490, y: 570, radius: 36, score: 1_500, color: 0xffbd35 },
-      ],
-      rails: [
-        { id: 's2-left', thickness: 12, color: 0xff3bc8, points: [{ x: 145, y: 260 }, { x: 240, y: 340 }] },
-        { id: 's2-right', thickness: 12, color: 0xff3bc8, points: [{ x: 575, y: 690 }, { x: 470, y: 610 }] },
-      ],
-    },
-    {
-      id: 3, name: 'Secteur 3', offsetY: -3_000,
-      walls: [
-        { x: 100, y: 540, width: 28, height: 920 }, { x: 620, y: 540, width: 28, height: 920 },
-        { x: 360, y: 72, width: 548, height: 28 },
-      ],
-      bumpers: [
-        { id: 's3-center', x: 360, y: 470, radius: 48, score: 2_500, color: 0x35e7ff },
-      ],
-      rails: [
-        { id: 's3-crown', thickness: 13, color: 0x35e7ff, points: [{ x: 180, y: 620 }, { x: 360, y: 540 }, { x: 540, y: 620 }] },
-      ],
-    },
-  ],
-};
+const SECTOR_COUNT = 4;
+const COLORS = [0xff3bc8, 0xffbd35, 0x35e7ff] as const;
+
+function hashSeed(seed: string): number {
+  let hash = 2_166_136_261;
+  for (const character of seed) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
+function randomFrom(seed: string): () => number {
+  let value = hashSeed(seed);
+  return () => {
+    value += 0x6d2b79f5;
+    let result = value;
+    result = Math.imul(result ^ result >>> 15, result | 1);
+    result ^= result + Math.imul(result ^ result >>> 7, result | 61);
+    return ((result ^ result >>> 14) >>> 0) / 4_294_967_296;
+  };
+}
+
+function shuffled<T>(values: readonly T[], random: () => number): T[] {
+  const result = [...values];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [result[index], result[swap]] = [result[swap], result[index]];
+  }
+  return result;
+}
+
+function generateSector(id: number, random: () => number): SectorDefinition {
+  const bumperSlots = shuffled([
+    { x: 205, y: 330 }, { x: 360, y: 390 }, { x: 505, y: 330 },
+    { x: 235, y: 570 }, { x: 475, y: 590 }, { x: 350, y: 700 },
+  ], random).slice(0, 2 + Math.floor(random() * 2));
+  const bumpers: BumperDefinition[] = bumperSlots.map((point, index) => ({
+    id: `s${id}-bumper-${index}`, ...point, radius: 32 + Math.floor(random() * 8),
+    score: 1_250 + id * 500, color: COLORS[Math.floor(random() * COLORS.length)],
+  }));
+  const mirror = random() > 0.5;
+  const rails: RailDefinition[] = [
+    { id: `s${id}-guide-a`, thickness: 11, color: COLORS[id % COLORS.length], points: [
+      { x: mirror ? 140 : 580, y: 220 }, { x: mirror ? 155 : 565, y: 310 }, { x: mirror ? 140 : 580, y: 420 },
+    ] },
+    { id: `s${id}-guide-b`, thickness: 11, color: COLORS[(id + 1) % COLORS.length], points: [
+      { x: mirror ? 580 : 140, y: 650 }, { x: mirror ? 540 : 180, y: 735 },
+    ] },
+  ];
+  const obstacleLeft = random() > 0.5;
+  const obstacles: WallDefinition[] = [{
+    x: obstacleLeft ? 205 : 515, y: 805, width: 105, height: 16, angle: obstacleLeft ? 0.22 : -0.22,
+  }];
+  const walls: WallDefinition[] = [
+    { x: 100, y: 540, width: 28, height: 920 },
+    { x: 620, y: 540, width: 28, height: 920 },
+  ];
+  if (id === 0) walls.push(
+    { x: 550, y: 670, width: 18, height: 690 },
+    { x: 195, y: 980, width: 235, height: 28, angle: 0.18 },
+    { x: 525, y: 980, width: 235, height: 28, angle: -0.18 },
+  );
+  if (id === SECTOR_COUNT - 1) walls.push({ x: 360, y: 72, width: 548, height: 28 });
+  return { id, name: `Secteur ${id}`, offsetY: -id * 1_000, walls, bumpers, rails, obstacles };
+}
+
+export function generateWorld(seed: string): WorldDefinition {
+  const random = randomFrom(seed);
+  return {
+    backgroundColor: BACKGROUND_COLOR,
+    spawn: { x: 585, y: 940 },
+    drain: { x: 360, y: 1060, width: 260, height: 40 },
+    safetyPost: { x: 360, y: 962, radius: 11 },
+    sectors: Array.from({ length: SECTOR_COUNT }, (_, id) => generateSector(id, random)),
+  };
+}
+
+export function createRunSeed(): string {
+  return new URLSearchParams(window.location.search).get('seed') ?? crypto.randomUUID().slice(0, 8);
+}
 
 export const worldY = (localY: number, offsetY: number): number => localY + offsetY;

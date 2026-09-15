@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PHYSICS } from '../config/physics';
-import { WORLD, worldY } from '.';
+import { generateWorld, worldY } from '.';
+
+const WORLD = generateWorld('test-seed');
 
 describe('monde vertical', () => {
   it('empile au moins deux secteurs dans un même repère physique', () => {
@@ -29,5 +31,50 @@ describe('monde vertical', () => {
     expect(gate.antiReturn.x).toBe(gate.x);
     expect(gate.antiReturn.width).toBeGreaterThanOrEqual(gate.width);
     expect(gate.antiReturn.height).toBeGreaterThanOrEqual(PHYSICS.ball.radius);
+  });
+
+  it('reproduit exactement une géométrie avec le même seed', () => {
+    expect(generateWorld('debug-42')).toEqual(generateWorld('debug-42'));
+    expect(generateWorld('debug-42').sectors).not.toEqual(generateWorld('autre-run').sectors);
+  });
+
+  it('préserve le socle inférieur entre les runs', () => {
+    const first = generateWorld('a');
+    const second = generateWorld('b');
+    expect(first.spawn).toEqual(second.spawn);
+    expect(first.drain).toEqual(second.drain);
+    expect(first.safetyPost).toEqual(second.safetyPost);
+    expect(first.sectors[0].walls).toEqual(second.sectors[0].walls);
+  });
+
+  it('ne superpose aucun bumper généré dans un secteur', () => {
+    for (const sector of generateWorld('collision-check').sectors) {
+      sector.bumpers.forEach((bumper, index) => {
+        for (const other of sector.bumpers.slice(index + 1)) {
+          expect(Math.hypot(bumper.x - other.x, bumper.y - other.y)).toBeGreaterThan(bumper.radius + other.radius + 16);
+        }
+      });
+    }
+  });
+
+  it('maintient les rails générés hors des bumpers', () => {
+    const distanceToSegment = (x: number, y: number, ax: number, ay: number, bx: number, by: number): number => {
+      const lengthSquared = (bx - ax) ** 2 + (by - ay) ** 2;
+      const ratio = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / lengthSquared));
+      return Math.hypot(x - (ax + ratio * (bx - ax)), y - (ay + ratio * (by - ay)));
+    };
+    for (const seed of ['alpha-21', 'beta-21', 'gamma-21', 'delta-21']) {
+      for (const sector of generateWorld(seed).sectors) {
+        for (const bumper of sector.bumpers) {
+          for (const rail of sector.rails) {
+            rail.points.slice(1).forEach((point, index) => {
+              const previous = rail.points[index];
+              expect(distanceToSegment(bumper.x, bumper.y, previous.x, previous.y, point.x, point.y))
+                .toBeGreaterThan(bumper.radius + rail.thickness / 2);
+            });
+          }
+        }
+      }
+    }
   });
 });

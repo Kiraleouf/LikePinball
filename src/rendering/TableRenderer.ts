@@ -25,6 +25,10 @@ export class TableRenderer {
         this.scene.add.rectangle(wall.x, worldY(wall.y, sector.offsetY), wall.width, wall.height, COLORS.graphite)
           .setStrokeStyle(3, COLORS.cyan, 0.85).setRotation(wall.angle ?? 0);
       }
+      for (const obstacle of sector.obstacles) {
+        this.scene.add.rectangle(obstacle.x, worldY(obstacle.y, sector.offsetY), obstacle.width, obstacle.height, COLORS.graphite)
+          .setStrokeStyle(2, 0xffbd35, 0.9).setRotation(obstacle.angle ?? 0).setDepth(2);
+      }
     }
 
     this.scene.add
