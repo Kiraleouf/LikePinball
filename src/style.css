@@ -14,6 +14,8 @@ canvas { display: block; }
 canvas:focus { outline: none; }
 
 .game-ui { position: fixed; inset: 0; pointer-events: none; }
+.editor-link { position: absolute; right: 20px; top: 20px; z-index: 2; padding: 8px 10px; border: 1px solid rgba(121,174,187,.24); color: var(--muted); font-size: 8px; letter-spacing: .14em; text-decoration: none; pointer-events: auto; }
+.editor-link:hover { color: var(--white); border-color: var(--cyan); }
 .hud { position: absolute; inset: 22px auto auto 22px; width: 244px; display: grid; gap: 9px; color: var(--muted); letter-spacing: .12em; }
 .hud header { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 0 10px; margin-bottom: 5px; }
 .brand-mark { grid-row: 1 / 3; display: grid; place-items: center; width: 34px; aspect-ratio: 1; border: 1px solid rgba(53,231,255,.7); color: var(--white); font-weight: 900; box-shadow: inset 0 0 14px rgba(53,231,255,.16), 0 0 18px rgba(53,231,255,.12); }
@@ -57,4 +59,29 @@ kbd { padding: 2px 4px; border: 1px solid rgba(121,174,187,.35); border-radius: 
   .progress-panel, .launcher-panel { display: none; }
   .hud footer { display: none; }
   .score-panel strong { font-size: 22px; }
+}
+
+.editor-mode canvas { margin-left: 300px; width: calc(100% - 300px) !important; }
+.editor-panel { position: fixed; inset: 0 auto 0 0; z-index: 10; width: 300px; padding: 22px; overflow: auto; color: var(--muted); background: #050b0e; border-right: 1px solid rgba(53,231,255,.22); letter-spacing: .1em; }
+.editor-panel header { display: grid; gap: 3px; padding-bottom: 18px; border-bottom: 1px solid rgba(121,174,187,.18); }
+.editor-panel header span { font-size: 8px; color: var(--cyan); }
+.editor-panel header strong { color: var(--white); font-size: 18px; }
+.editor-panel header a { margin-top: 8px; color: var(--muted); font-size: 8px; text-decoration: none; }
+.editor-panel section { padding: 18px 0; border-bottom: 1px solid rgba(121,174,187,.14); }
+.editor-panel label, .panel-label { display: grid; gap: 7px; color: var(--muted); font-size: 8px; }
+.editor-panel input { width: 100%; padding: 9px; border: 1px solid rgba(121,174,187,.25); outline: none; background: #081115; color: var(--white); font: 11px inherit; }
+.editor-panel input:focus { border-color: var(--cyan); }
+.tool-grid, .property-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
+.editor-panel button { padding: 10px 8px; border: 1px solid rgba(121,174,187,.28); background: rgba(18,58,68,.12); color: var(--white); font: 700 8px inherit; letter-spacing: .08em; cursor: pointer; }
+.editor-panel button:hover { border-color: var(--cyan); }
+.editor-panel p { font-size: 9px; line-height: 1.6; }
+.editor-panel .danger { width: 100%; margin-top: 12px; color: #ff7a9e; border-color: rgba(255,59,120,.3); }
+.editor-actions { display: grid; gap: 7px; }
+.editor-panel .primary { color: #020508; background: var(--cyan); border-color: var(--cyan); }
+.editor-panel footer { padding-top: 18px; font-size: 7px; line-height: 1.7; }
+.connection-key { display: inline-block; width: 12px; height: 5px; margin-right: 5px; background: #39ff9a; opacity: .55; }
+
+@media (max-width: 760px) {
+  .editor-panel { width: 240px; padding: 14px; }
+  .editor-mode canvas { margin-left: 240px; width: calc(100% - 240px) !important; }
 }

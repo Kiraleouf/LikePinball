@@ -6,6 +6,7 @@ import { RunState } from '../gameplay/RunState';
 import { ScoreState } from '../gameplay/ScoreState';
 import { SectorUnlockState } from '../gameplay/SectorUnlockState';
 import { sectorUnlockScore, STARTING_BALLS } from '../config/game';
+import { parseTemplate } from '../editor/template';
 import { createRunSeed, generateSector, generateWorld } from '../tables';
 import type { FlipperDefinition, Point, SectorDefinition, WallDefinition } from '../tables/types';
 
@@ -30,7 +31,7 @@ export class PinballPrototype {
   private readonly score = new ScoreState();
   private readonly unlocks = new SectorUnlockState(sectorUnlockScore);
   private readonly charge = new LaunchChargeState(1_400);
-  private readonly sectors = generateWorld(this.seed, 2).sectors;
+  private readonly sectors = this.initialSectors();
   private readonly cameraSector = new CameraSectorState(this.sectors.length, SECTOR_LENGTH, -10, 2);
   private readonly bumperScores = new Map<number, number>();
   private readonly sectorGates = new Map<number, PhysicsMesh>();
@@ -344,6 +345,7 @@ export class PinballPrototype {
       <div class="launcher-panel"><div><span>LANCEUR</span><strong id="charge">PRÊT</strong></div><i><b id="power-fill"></b></i></div>
       <footer><kbd>Q</kbd><kbd>←</kbd> GAUCHE <kbd>D</kbd><kbd>→</kbd> DROITE <kbd>ESPACE</kbd> LANCER</footer>
     </aside><div class="run-overlay" id="run-overlay"><div class="run-card"><span class="eyebrow">ASCENSION // 3D</span><h1>LIKE<span>PINBALL</span></h1><p>Monte, marque et ouvre la voie vers les secteurs supérieurs.</p><button id="start-run">LANCER LA RUN</button><small>ESPACE OU ENTRÉE</small></div></div>`;
+    const editorLink = document.createElement('a'); editorLink.className = 'editor-link'; editorLink.href = '/?editor=1'; editorLink.textContent = 'SECTOR LAB'; ui.append(editorLink);
     ui.querySelector('#start-run')?.addEventListener('click', () => this.startSession());
     return ui;
   }
@@ -359,6 +361,16 @@ export class PinballPrototype {
   private pulse(id: string): void { const element = document.getElementById(id); if (!element) return; element.classList.remove('pulse'); requestAnimationFrame(() => element.classList.add('pulse')); }
 
   private setText(id: string, value: string): void { const element = document.getElementById(id); if (element) element.textContent = value; }
+  private initialSectors(): SectorDefinition[] {
+    if (new URLSearchParams(location.search).has('editor-test')) {
+      const source = localStorage.getItem('likepinball.editor-test');
+      if (source) {
+        try { return [{ ...parseTemplate(source).sector, id: 0, offsetY: 0 }, generateSector(this.seed, 1)]; }
+        catch (error) { console.warn('Template éditeur ignoré', error); }
+      }
+    }
+    return generateWorld(this.seed, 2).sectors;
+  }
   private launchPosition(): THREE.Vector3 { return this.onBoard(4.75, 7.7, 0.72); }
   private mapX(x: number): number { return (x - 360) / 45; }
   private mapZ(sector: number, y: number): number { return (y - 540) / 50 - sector * SECTOR_LENGTH; }
