@@ -1,4 +1,5 @@
 import { BACKGROUND_COLOR } from '../config/game';
+import { readInitialTemplate } from './initialTemplate';
 import { parseTemplate, type SectorTemplateFile, type VariationSlot } from '../editor/template';
 import neonOrbit from './templates/neon-orbit.sector.json';
 import splitLane from './templates/split-lane.sector.json';
@@ -52,7 +53,10 @@ function assembleSector(seed: string, id: number): SectorDefinition {
   };
 }
 
-export function generateSector(seed: string, id: number): SectorDefinition { return assembleSector(seed, id); }
+export function generateSector(seed: string, id: number): SectorDefinition {
+  if (id === 0) return readInitialTemplate().sector;
+  return assembleSector(seed, id);
+}
 
 export function generateWorld(seed: string, sectorCount = 2): WorldDefinition {
   return { backgroundColor: BACKGROUND_COLOR, spawn: { x: 585, y: 940 }, drain: { x: 360, y: 1060, width: 260, height: 40 }, safetyPost: { x: 360, y: 962, radius: 11 }, sectors: Array.from({ length: sectorCount }, (_, id) => generateSector(seed, id)) };

@@ -88,7 +88,8 @@ describe('monde vertical', () => {
   it('génère des flippers secondaires asymétriques sans modifier les principaux', () => {
     const alpha = generateWorld('alpha-22', 6);
     const beta = generateWorld('beta-22', 6);
-    expect(alpha.sectors[0].flippers).toEqual([]);
+    expect(alpha.sectors[0].flippers.map(flipper => flipper.id)).toEqual(['main-left', 'main-right']);
+    expect(alpha.sectors[0]).toEqual(beta.sectors[0]);
     expect(alpha.sectors.slice(1).every((sector) => sector.flippers.length >= 1)).toBe(true);
     expect(alpha.sectors.slice(1).map((sector) => sector.flippers)).not.toEqual(
       beta.sectors.slice(1).map((sector) => sector.flippers),

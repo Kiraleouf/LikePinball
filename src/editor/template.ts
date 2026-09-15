@@ -36,11 +36,29 @@ export function parseTemplate(source: string): SectorTemplateFile {
 
 function isSector(value: unknown): boolean {
   if (!isRecord(value)) return false;
-  return typeof value.name === 'string' && typeof value.id === 'number' && typeof value.offsetY === 'number'
-    && ['walls', 'bumpers', 'rails', 'obstacles', 'flippers'].every((key) => Array.isArray(value[key]));
+  const point = (v: unknown): boolean => isRecord(v) && finite(v.x) && finite(v.y);
+  const wall = (v: unknown): boolean => isRecord(v) && point(v) && positive(v.width) && positive(v.height) && (v.angle === undefined || finite(v.angle));
+  const identified = (v: unknown): v is Record<string, unknown> => isRecord(v) && typeof v.id === 'string' && v.id.length > 0;
+  const array = (key: string, valid: (v: unknown) => boolean): boolean => Array.isArray(value[key]) && value[key].every(valid);
+  return typeof value.name === 'string' && Number.isInteger(value.id) && finite(value.offsetY)
+    && array('walls', wall) && array('obstacles', wall)
+    && array('bumpers', v => identified(v) && point(v) && positive(v.radius) && positive(v.score) && finite(v.color))
+    && array('rails', v => identified(v) && positive(v.thickness) && finite(v.color) && Array.isArray(v.points) && v.points.length >= 2 && v.points.every(point) && v.points.slice(1).every((p, i) => { const a = v.points as { x: number; y: number }[]; return p.x !== a[i].x || p.y !== a[i].y; }))
+    && array('flippers', v => identified(v) && point(v) && ['left', 'right'].includes(String(v.side)) && finite(v.restAngle) && finite(v.activeAngle))
+    && (value.posts === undefined || array('posts', v => identified(v) && point(v) && positive(v.radius)));
 }
 
-function isMetadata(value: unknown): boolean { return isRecord(value) && typeof value.id === 'string' && typeof value.weight === 'number' && Array.isArray(value.tags) && Array.isArray(value.optionalElementIds) && Array.isArray(value.variationSlots) && isRecord(value.connections); }
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const positive = (value: unknown): value is number => finite(value) && value > 0;
+const strings = (value: unknown): boolean => Array.isArray(value) && value.every(item => typeof item === 'string');
+function isMetadata(value: unknown): boolean {
+  return isRecord(value) && typeof value.id === 'string' && value.id.length > 0 && positive(value.weight)
+    && strings(value.tags) && strings(value.optionalElementIds) && Array.isArray(value.variationSlots)
+    && value.variationSlots.every(v => isRecord(v) && typeof v.elementId === 'string'
+      && ['maxOffsetX', 'maxOffsetY', 'angleRange'].every(key => v[key] === undefined || (finite(v[key]) && v[key] >= 0))
+      && (v.scoreMultipliers === undefined || (Array.isArray(v.scoreMultipliers) && v.scoreMultipliers.length > 0 && v.scoreMultipliers.every(positive))))
+    && isRecord(value.connections) && typeof value.connections.top === 'boolean' && typeof value.connections.bottom === 'boolean';
+}
 function slug(value: string): string { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'secteur'; }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null; }

@@ -3,12 +3,14 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { PHYSICS_3D, approachAngle, flipperYaw } from '../config/physics3d';
 import { createComponent } from './components';
+import { readInitialTemplate } from '../tables/initialTemplate';
 
 it('lets a ball descend between the right hub and the launcher wall', async () => {
   await RAPIER.init(); const { world, rotation, point } = board(PHYSICS_3D.gravity, PHYSICS_3D.tilt);
   const visual = createComponent('flipper', { side: 'right', externalPose: true });
   if (visual.collider.type !== 'convex') throw new Error('Flipper hull required');
-  const p = point(2.65, 0.55, 6.37);
+  const pivot = readInitialTemplate().sector.flippers.find(f => f.id === 'main-right')!;
+  const p = point((pivot.x - 360) / 45, 0.55, (pivot.y - 540) / 50);
   const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(p.x, p.y, p.z).setRotation(rotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), flipperYaw(-0.18)))));
   world.createCollider(RAPIER.ColliderDesc.convexHull(visual.collider.vertices)!, body);
   const wp = point(4.05, 0.45, 3.7);

@@ -25,7 +25,7 @@ Le **Component Studio** permet d’explorer huit composants avec une caméra orb
 - Lanceur : régler la charge puis utiliser `Hit / relâcher` pour tester le piston.
 - Flippers : la physique pilote la pose en jeu ; le showroom prévisualise les angles des flippers principaux.
 - Les sliders de dimensions sont des multiplicateurs. Les corps ronds conservent un diamètre unique et les colliders utilisent les mêmes dimensions que le rendu. Les chanfreins, inserts et petits détails restent décoratifs ; les colliders conservent les formes simplifiées de V2.
-- Les posts et le piston étaient décoratifs dans le moteur V2 et le restent. Modifier une dimension fonctionnelle peut affecter la jouabilité ou les dégagements d’un secteur : vérifier une run avant de retenir le preset.
+- Les posts de bordure et le piston restent décoratifs. Les posts placés dans un template (dont le post central du secteur 0) utilisent un collider cylindrique partagé. Modifier une dimension fonctionnelle peut affecter la jouabilité ou les dégagements d’un secteur : vérifier une run avant de retenir le preset.
 
 ### Conserver et partager un preset
 
@@ -164,3 +164,9 @@ Ne pas complexifier le roguelike tant que cette base n'est pas satisfaisante.
 Les tâches d'implémentation sont suivies via les GitHub Issues et le GitHub Project associé au repository.
 
 Chaque issue doit rester limitée à son périmètre. Une issue n'est terminée que lorsque ses critères d'acceptation sont satisfaits et que les vérifications pertinentes passent.
+
+### Secteur initial dans le Sector Lab
+
+`/?editor=1` ouvre le secteur 0 réellement utilisé par les nouvelles runs. Sélectionner un élément dans la liste ou sur le plateau, modifier X/Y et son angle, puis **Sauvegarder pour les runs**. Les coordonnées des flippers représentent leur pivot ; changer leur orientation conserve la course de frappe. Les flippers, post central, bumpers, rails, murs et obstacles sont éditables. Le lanceur, le drain (zone rose) et les limites structurelles restent fixes.
+
+Le template versionné `src/tables/templates/initial-sector.sector.json` est la disposition initiale. La sauvegarde locale (`likepinball.initial-template.v1`) la remplace dans ce navigateur, y compris après rechargement du Lab. **Exporter JSON** permet de versionner le résultat dans ce fichier ; **Charger** restaure un export avec ses métadonnées. **Nouveau** crée un template libre et **Tester le secteur** lance un aperçu temporaire. Les composants 3D et les colliders proviennent toujours de la bibliothèque partagée.

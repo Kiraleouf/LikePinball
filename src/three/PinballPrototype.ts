@@ -11,7 +11,7 @@ import { SectorUnlockState } from '../gameplay/SectorUnlockState';
 import { sectorUnlockScore, STARTING_BALLS } from '../config/game';
 import { parseTemplate } from '../editor/template';
 import { createRunSeed, generateSector, generateWorld } from '../tables';
-import type { FlipperDefinition, Point, SectorDefinition, WallDefinition } from '../tables/types';
+import type { FlipperDefinition, Point, PostDefinition, SectorDefinition, WallDefinition } from '../tables/types';
 
 interface PhysicsMesh { readonly body: RAPIER.RigidBody; readonly mesh: THREE.Object3D; readonly visual?: Component3D }
 interface Flipper3D { readonly body: RAPIER.RigidBody; readonly visual: Component3D; readonly side: 'left' | 'right'; readonly rest: number; readonly active: number; angle: number }
@@ -114,13 +114,12 @@ export class PinballPrototype {
       this.addGuide(sector.id, rail.points[index], point, rail.thickness, rail.color)));
     sector.obstacles.forEach((obstacle, index) => this.addObstacle(sector.id, obstacle, index));
     sector.flippers.forEach((flipper) => this.addGeneratedFlipper(sector.id, flipper));
+    sector.walls.forEach((wall) => this.addFixedBox('editable-wall', this.mapX(wall.x), this.mapZ(sector.id, wall.y), 0.36, wall.width / 90, wall.height / 100, 0.36, CYAN, -(wall.angle ?? 0)));
+    sector.posts?.forEach((post) => this.addPlayablePost(sector.id, post));
     this.addSectorGate(sector.id);
   }
 
   private createBase(): void {
-    // Leave a full ball diameter between the right hub and the launcher wall.
-    this.addFlipper('main-left', -2.65, 6.37, 'left', 0.18, -0.62);
-    this.addFlipper('main-right', 2.65, 6.37, 'right', -0.18, 0.62);
     this.addFixedBox('couloir-interieur', 4.05, 3.7, 0.45, 0.12, 5.6, 0.62, CYAN);
     this.launcherVisual = this.component('launcher');
     const plunger = this.launcherVisual.root;
@@ -209,6 +208,15 @@ export class PinballPrototype {
 
   private addPost(x: number, z: number): void {
     const post = this.component('post').root; post.position.copy(this.onBoard(x, z, 0.48)); post.quaternion.copy(this.boardRotation); this.scene.add(post);
+  }
+
+  private addPlayablePost(sector: number, definition: PostDefinition): void {
+    const diameter = definition.radius * 2 / 45;
+    const visual = this.component('post', { size: { x: diameter, y: 0.9, z: diameter } });
+    const position = this.onBoard(this.mapX(definition.x), this.mapZ(sector, definition.y), 0.45);
+    const body = this.requireWorld().createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(this.boardRotation));
+    this.requireWorld().createCollider(this.collider(visual).setRestitution(0.7), body);
+    visual.root.position.copy(position); visual.root.quaternion.copy(this.boardRotation); this.scene.add(visual.root);
   }
 
   private component(kind: ComponentKind, options: ComponentOptions = {}): Component3D {

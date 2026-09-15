@@ -25,7 +25,7 @@ export function dimensions(kind: ComponentKind, params: VisualParams, size = bas
 }
 export function collisionShape(kind: ComponentKind, size: Size): CollisionShape {
   if (kind === 'ball') return { type: 'ball', radius: size.x / 2 };
-  if (kind === 'bumper') return { type: 'cylinder', radius: size.x / 2, halfHeight: size.y / 2 };
+  if (kind === 'bumper' || kind === 'post') return { type: 'cylinder', radius: size.x / 2, halfHeight: size.y / 2 };
   return { type: 'box', half: { x: size.x / 2, y: size.y / 2, z: size.z / 2 } };
 }
 export interface Component3D {

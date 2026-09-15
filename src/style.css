@@ -71,7 +71,10 @@ kbd { padding: 2px 4px; border: 1px solid rgba(121,174,187,.35); border-radius: 
 .editor-panel header a { margin-top: 8px; color: var(--muted); font-size: 8px; text-decoration: none; }
 .editor-panel section { padding: 18px 0; border-bottom: 1px solid rgba(121,174,187,.14); }
 .editor-panel label, .panel-label { display: grid; gap: 7px; color: var(--muted); font-size: 8px; }
-.editor-panel input { width: 100%; padding: 9px; border: 1px solid rgba(121,174,187,.25); outline: none; background: #081115; color: var(--white); font: 11px inherit; }
+.editor-panel input, .editor-panel select { width: 100%; padding: 9px; border: 1px solid rgba(121,174,187,.25); outline: none; background: #081115; color: var(--white); font: 11px inherit; }
+.editor-panel button:disabled { opacity: .4; cursor: default; }
+.editor-panel label { margin-top: 8px; }
+.editor-panel [role="status"] { color: var(--cyan); }
 .editor-panel input:focus { border-color: var(--cyan); }
 .tool-grid, .property-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
 .editor-panel button { padding: 10px 8px; border: 1px solid rgba(121,174,187,.28); background: rgba(18,58,68,.12); color: var(--white); font: 700 8px inherit; letter-spacing: .08em; cursor: pointer; }

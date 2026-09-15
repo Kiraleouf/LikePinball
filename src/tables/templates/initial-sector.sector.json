@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "metadata": {
+    "id": "initial-sector", "tags": ["initial"], "weight": 1,
+    "connections": { "top": true, "bottom": false },
+    "optionalElementIds": [], "variationSlots": []
+  },
+  "sector": {
+    "id": 0, "name": "Secteur initial", "offsetY": 0,
+    "walls": [],
+    "bumpers": [
+      { "id": "initial-left", "x": 235, "y": 430, "radius": 36, "score": 1250, "color": 3532799 },
+      { "id": "initial-right", "x": 485, "y": 430, "radius": 36, "score": 1250, "color": 16726984 },
+      { "id": "initial-center", "x": 360, "y": 620, "radius": 33, "score": 1750, "color": 16760117 }
+    ],
+    "rails": [
+      { "id": "initial-rail-left", "points": [{ "x": 145, "y": 240 }, { "x": 165, "y": 350 }, { "x": 145, "y": 470 }], "thickness": 11, "color": 3532799 }
+    ],
+    "obstacles": [{ "x": 360, "y": 780, "width": 100, "height": 14, "angle": 0.1 }],
+    "flippers": [
+      { "id": "main-left", "side": "left", "x": 240.75, "y": 858.5, "restAngle": 0.18, "activeAngle": -0.62 },
+      { "id": "main-right", "side": "right", "x": 479.25, "y": 858.5, "restAngle": -0.18, "activeAngle": 0.62 }
+    ],
+    "posts": [{ "id": "central-post", "x": 360, "y": 962, "radius": 11 }]
+  }
+}
