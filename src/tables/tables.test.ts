@@ -4,7 +4,7 @@ import { WORLD, worldY } from '.';
 
 describe('monde vertical', () => {
   it('empile au moins deux secteurs dans un même repère physique', () => {
-    expect(WORLD.sectors).toHaveLength(2);
+    expect(WORLD.sectors).toHaveLength(4);
     expect(WORLD.sectors[1].offsetY).toBeLessThan(WORLD.sectors[0].offsetY);
     expect(worldY(500, WORLD.sectors[1].offsetY)).toBe(-500);
   });

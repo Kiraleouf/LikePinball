@@ -10,3 +10,4 @@ export const COLORS = {
 } as const;
 
 export const STARTING_BALLS = 3;
+export const SECTOR_UNLOCK_SCORES = [10_000, 50_000, 100_000] as const;

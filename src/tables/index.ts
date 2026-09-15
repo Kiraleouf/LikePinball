@@ -32,7 +32,6 @@ export const WORLD: WorldDefinition = {
       id: 1, name: 'Secteur 1', offsetY: -1_000,
       walls: [
         { x: 100, y: 540, width: 28, height: 920 }, { x: 620, y: 540, width: 28, height: 920 },
-        { x: 360, y: 72, width: 548, height: 28 },
       ],
       bumpers: [
         { id: 's1-left', x: 235, y: 465, radius: 40, score: 750, color: 0x35e7ff },
@@ -41,6 +40,33 @@ export const WORLD: WorldDefinition = {
       rails: [
         { id: 's1-chevron-left', thickness: 13, color: 0xffbd35, points: [{ x: 155, y: 265 }, { x: 260, y: 345 }, { x: 180, y: 650 }] },
         { id: 's1-chevron-right', thickness: 13, color: 0xffbd35, points: [{ x: 515, y: 265 }, { x: 410, y: 345 }, { x: 490, y: 650 }] },
+      ],
+    },
+    {
+      id: 2, name: 'Secteur 2', offsetY: -2_000,
+      walls: [
+        { x: 100, y: 540, width: 28, height: 920 }, { x: 620, y: 540, width: 28, height: 920 },
+      ],
+      bumpers: [
+        { id: 's2-left', x: 210, y: 430, radius: 36, score: 1_500, color: 0xffbd35 },
+        { id: 's2-right', x: 490, y: 570, radius: 36, score: 1_500, color: 0xffbd35 },
+      ],
+      rails: [
+        { id: 's2-left', thickness: 12, color: 0xff3bc8, points: [{ x: 145, y: 260 }, { x: 240, y: 340 }] },
+        { id: 's2-right', thickness: 12, color: 0xff3bc8, points: [{ x: 575, y: 690 }, { x: 470, y: 610 }] },
+      ],
+    },
+    {
+      id: 3, name: 'Secteur 3', offsetY: -3_000,
+      walls: [
+        { x: 100, y: 540, width: 28, height: 920 }, { x: 620, y: 540, width: 28, height: 920 },
+        { x: 360, y: 72, width: 548, height: 28 },
+      ],
+      bumpers: [
+        { id: 's3-center', x: 360, y: 470, radius: 48, score: 2_500, color: 0x35e7ff },
+      ],
+      rails: [
+        { id: 's3-crown', thickness: 13, color: 0x35e7ff, points: [{ x: 180, y: 620 }, { x: 360, y: 540 }, { x: 540, y: 620 }] },
       ],
     },
   ],

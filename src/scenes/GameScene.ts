@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { STARTING_BALLS } from '../config/game';
+import { SECTOR_UNLOCK_SCORES, STARTING_BALLS } from '../config/game';
 import { PHYSICS } from '../config/physics';
 import { BallController } from '../gameplay/BallController';
 import { BumperController } from '../gameplay/BumperController';
@@ -8,6 +8,8 @@ import { RunState } from '../gameplay/RunState';
 import { ScoreState } from '../gameplay/ScoreState';
 import { LauncherGateController } from '../gameplay/LauncherGateController';
 import { LaunchChargeState } from '../gameplay/LaunchChargeState';
+import { SectorGateController } from '../gameplay/SectorGateController';
+import { SectorUnlockState } from '../gameplay/SectorUnlockState';
 import { TableRenderer } from '../rendering/TableRenderer';
 import { LaunchGauge } from '../rendering/LaunchGauge';
 import { createRailSegments } from '../physics/railGeometry';
@@ -30,6 +32,9 @@ export class GameScene extends Phaser.Scene {
   private launcherGate?: LauncherGateController;
   private readonly launchCharge = new LaunchChargeState(PHYSICS.launcher.chargeCycleMs);
   private launchGauge?: LaunchGauge;
+  private sectorGates?: SectorGateController;
+  private sectorText?: Phaser.GameObjects.Text;
+  private sectorUnlocks = new SectorUnlockState(SECTOR_UNLOCK_SCORES);
 
   public constructor() {
     super('game');
@@ -38,15 +43,17 @@ export class GameScene extends Phaser.Scene {
   public init(): void {
     this.run = new RunState(STARTING_BALLS);
     this.score = new ScoreState();
+    this.sectorUnlocks = new SectorUnlockState(SECTOR_UNLOCK_SCORES);
     this.bumpers.clear();
   }
 
   public create(): void {
     this.cameras.main.setBackgroundColor(WORLD.backgroundColor);
-    this.cameras.main.setBounds(0, -1_000, 720, 2_080).setScroll(0, 0);
+    this.cameras.main.setBounds(0, -3_000, 720, 4_080).setScroll(0, 0);
     const renderer = new TableRenderer(this, WORLD);
     renderer.draw();
     this.createPhysics();
+    this.sectorGates = new SectorGateController(this, WORLD.sectors);
     this.launcherGate = new LauncherGateController(this);
     this.createBumpers();
     const flipperTexture = renderer.createFlipperTexture();
@@ -87,6 +94,10 @@ export class GameScene extends Phaser.Scene {
 
     this.add.text(108, 92, 'MONDE VERTICAL', {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', letterSpacing: 3,
+    }).setDepth(4);
+
+    this.sectorText = this.add.text(108, 153, this.sectorProgressLabel(), {
+      color: '#79aebb', fontFamily: 'monospace', fontSize: '12px', letterSpacing: 1,
     }).setDepth(4);
 
     this.ballsText = this.add.text(612, 92, `BILLES  ${this.run.ballsRemaining}`, {
@@ -204,6 +215,8 @@ export class GameScene extends Phaser.Scene {
       bumper.hit(this.ball.image);
       const value = this.score.add(bumper.definition.score);
       this.scoreText?.setText(`SCORE  ${value.toLocaleString('fr-FR')}`);
+      for (const index of this.sectorUnlocks.update(value)) this.sectorGates?.open(index, this);
+      this.sectorText?.setText(this.sectorProgressLabel());
     }
   }
 
@@ -230,6 +243,13 @@ export class GameScene extends Phaser.Scene {
     this.add.text(360, 530, 'GAME OVER', {
       color: '#e8fbff', fontFamily: 'monospace', fontSize: '42px', letterSpacing: 8,
     }).setOrigin(0.5).setDepth(5);
+  }
+
+  private sectorProgressLabel(): string {
+    const next = this.sectorUnlocks.nextThreshold;
+    return next === undefined
+      ? 'TOUS SECTEURS OUVERTS'
+      : `SECTEUR ${this.sectorUnlocks.highestAccessibleSector + 1}  ${next.toLocaleString('fr-FR')} PTS`;
   }
 
 }
