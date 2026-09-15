@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import { CameraSectorState } from '../gameplay/CameraSectorState';
 
 interface PhysicsMesh { readonly body: RAPIER.RigidBody; readonly mesh: THREE.Object3D }
 
@@ -20,6 +21,14 @@ export class PinballPrototype {
   private leftFlipper?: RAPIER.RigidBody;
   private rightFlipper?: RAPIER.RigidBody;
   private lastTime = performance.now();
+  private readonly cameraSector = new CameraSectorState(3, 20, -10, 2);
+  private readonly baseCameraPosition = new THREE.Vector3(0, 14, 21);
+  private readonly baseCameraTarget = new THREE.Vector3(0, 0, 0);
+  private readonly cameraTarget = new THREE.Vector3();
+  private readonly cameraFrom = new THREE.Vector3();
+  private readonly lookFrom = new THREE.Vector3();
+  private readonly lookTo = new THREE.Vector3();
+  private cameraTransition = 1;
 
   public constructor(private readonly root: HTMLElement) {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -36,7 +45,9 @@ export class PinballPrototype {
     this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     this.createScene();
     this.createPhysics();
-    this.frameScene();
+    this.camera.position.copy(this.baseCameraPosition);
+    this.cameraTarget.copy(this.baseCameraTarget);
+    this.camera.lookAt(this.cameraTarget);
     this.bindControls();
     addEventListener('resize', () => this.resize());
     this.renderer.setAnimationLoop((time) => this.update(time));
@@ -45,8 +56,6 @@ export class PinballPrototype {
   private createScene(): void {
     this.scene.background = new THREE.Color(0x020508);
     this.scene.fog = new THREE.FogExp2(0x020508, 0.028);
-    this.camera.position.set(0, 24, 27);
-    this.camera.lookAt(0, 0, 0);
     this.scene.add(new THREE.HemisphereLight(0x8bdcff, 0x05070b, 1.5));
     const key = new THREE.PointLight(CYAN, 55, 35, 2);
     key.position.set(-5, 9, 4);
@@ -59,16 +68,16 @@ export class PinballPrototype {
   private createPhysics(): void {
     const world = this.requireWorld();
     const boardMaterial = new THREE.MeshStandardMaterial({ color: 0x08131a, metalness: 0.55, roughness: 0.42 });
-    this.addFixedBox('plateau', new THREE.Vector3(0, -0.25, 0), new THREE.Vector3(6, 0.25, 10), boardMaterial);
-    const grid = new THREE.GridHelper(20, 20, CYAN, 0x123a44);
-    grid.scale.x = 0.6;
-    grid.position.copy(this.onBoard(0, 0, 0.015));
-    grid.quaternion.copy(this.boardRotation);
-    this.scene.add(grid);
+    for (let sector = 0; sector < 3; sector += 1) {
+      const z = -sector * 20;
+      this.addFixedBox(`plateau-${sector}`, new THREE.Vector3(0, -0.25, z), new THREE.Vector3(6, 0.25, 10), boardMaterial);
+      const grid = new THREE.GridHelper(20, 20, CYAN, 0x123a44);
+      grid.scale.x = 0.6; grid.position.copy(this.onBoard(0, z, 0.015)); grid.quaternion.copy(this.boardRotation); this.scene.add(grid);
+      this.addFixedBox(`mur-gauche-${sector}`, new THREE.Vector3(-5.75, 0.42, z), new THREE.Vector3(0.18, 0.65, 10), this.neonMaterial(CYAN));
+      this.addFixedBox(`mur-droit-${sector}`, new THREE.Vector3(5.75, 0.42, z), new THREE.Vector3(0.18, 0.65, 10), this.neonMaterial(CYAN));
+    }
     const railMaterial = this.neonMaterial(CYAN);
-    this.addFixedBox('mur-gauche', new THREE.Vector3(-5.75, 0.42, 0), new THREE.Vector3(0.18, 0.65, 10), railMaterial);
-    this.addFixedBox('mur-droit', new THREE.Vector3(5.75, 0.42, 0), new THREE.Vector3(0.18, 0.65, 10), railMaterial);
-    this.addFixedBox('mur-haut', new THREE.Vector3(0, 0.42, -9.75), new THREE.Vector3(5.8, 0.65, 0.18), railMaterial);
+    this.addFixedBox('mur-haut', new THREE.Vector3(0, 0.42, -49.75), new THREE.Vector3(5.8, 0.65, 0.18), railMaterial);
     [[-2.7, -3.2, MAGENTA], [2.7, -3.2, MAGENTA], [0, -0.5, GOLD]].forEach(([x, z, color], index) => {
       const position = this.onBoard(x, z, 0.62);
       const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y, position.z).setRotation(this.boardRotation));
@@ -111,7 +120,8 @@ export class PinballPrototype {
   private update(time: number): void {
     const world = this.world;
     if (!world) return;
-    world.timestep = Math.min((time - this.lastTime) / 1_000, 1 / 30);
+    const delta = Math.min((time - this.lastTime) / 1_000, 1 / 30);
+    world.timestep = delta;
     this.lastTime = time;
     this.setFlipperRotation(this.leftFlipper, this.keys.has('ArrowLeft') || this.keys.has('KeyQ') ? -0.62 : 0.18);
     this.setFlipperRotation(this.rightFlipper, this.keys.has('ArrowRight') || this.keys.has('KeyD') ? 0.62 : -0.18);
@@ -121,6 +131,7 @@ export class PinballPrototype {
       mesh.position.set(position.x, position.y, position.z); mesh.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
     }
     const ball = this.ball;
+    if (ball) this.updateCamera(ball.translation().z, delta);
     if (ball && (ball.translation().y < -5 || ball.translation().z > 12)) this.resetBall();
     this.renderer.render(this.scene, this.camera);
   }
@@ -172,13 +183,22 @@ export class PinballPrototype {
     this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height);
   }
 
-  private frameScene(): void {
-    const bounds = new THREE.Box3().setFromObject(this.scene);
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = bounds.getSize(new THREE.Vector3());
-    const distance = Math.max(size.x, size.z) * 1.05;
-    this.camera.position.set(center.x, center.y + distance * 0.72, center.z + distance);
-    this.camera.lookAt(center);
+  private updateCamera(ballZ: number, delta: number): void {
+    const sector = this.cameraSector.update(ballZ);
+    if (sector !== undefined) {
+      const shift = this.onBoard(0, -sector * 20, 0);
+      this.cameraFrom.copy(this.camera.position);
+      this.lookFrom.copy(this.cameraTarget);
+      this.lookTo.copy(this.baseCameraTarget).add(shift);
+      this.cameraTransition = 0;
+    }
+    if (this.cameraTransition >= 1) return;
+    this.cameraTransition = Math.min(1, this.cameraTransition + delta / 0.28);
+    const eased = this.cameraTransition * this.cameraTransition * (3 - 2 * this.cameraTransition);
+    const shift = this.onBoard(0, -this.cameraSector.currentSector * 20, 0);
+    this.camera.position.lerpVectors(this.cameraFrom, this.baseCameraPosition.clone().add(shift), eased);
+    this.cameraTarget.lerpVectors(this.lookFrom, this.lookTo, eased);
+    this.camera.lookAt(this.cameraTarget);
   }
 
   private requireWorld(): RAPIER.World {
