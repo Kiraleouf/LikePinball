@@ -116,8 +116,9 @@ export class PinballPrototype {
   }
 
   private createBase(): void {
-    this.addFlipper('main-left', -2.15, 6.2, 'left', 0.18, -0.62);
-    this.addFlipper('main-right', 2.15, 6.2, 'right', -0.18, 0.62);
+    // Anchors are the former resting hub positions, preserving the central drain clearance.
+    this.addFlipper('main-left', -3.085, 6.37, 'left', 0.18, -0.62);
+    this.addFlipper('main-right', 3.085, 6.37, 'right', -0.18, 0.62);
     this.addFixedBox('couloir-interieur', 4.05, 3.7, 0.45, 0.12, 5.6, 0.62, CYAN);
     this.launcherVisual = this.component('launcher');
     const plunger = this.launcherVisual.root;
@@ -216,6 +217,7 @@ export class PinballPrototype {
     const c = component.collider;
     if (c.type === 'ball') return RAPIER.ColliderDesc.ball(c.radius);
     if (c.type === 'cylinder') return RAPIER.ColliderDesc.cylinder(c.halfHeight, c.radius);
+    if (c.type === 'convex') { const hull = RAPIER.ColliderDesc.convexHull(c.vertices); if (!hull) throw new Error('Géométrie convexe de flipper invalide'); return hull; }
     return RAPIER.ColliderDesc.cuboid(c.half.x, c.half.y, c.half.z);
   }
 

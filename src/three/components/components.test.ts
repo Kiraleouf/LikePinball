@@ -6,7 +6,7 @@ describe('shared component library', () => {
   it('preserves the baseline collision dimensions used by the V2 game', () => {
     const expectations = {
       ball: { type: 'ball', radius: 0.42 }, bumper: { type: 'cylinder', radius: 1, halfHeight: 0.6 },
-      flipper: { type: 'box', half: { x: 1.25, y: 0.24, z: 0.3 } }, gate: { type: 'box', half: { x: 0.75, y: 0.5, z: 0.18 } },
+      gate: { type: 'box', half: { x: 0.75, y: 0.5, z: 0.18 } },
     } as const;
     for (const kind of Object.keys(expectations) as (keyof typeof expectations)[]) {
       const component = createComponent(kind, { params: defaultParams(kind) });

@@ -97,6 +97,7 @@ export class Showroom {
     this.component.setState(this.state); this.component.setAmount(this.amount); this.stage.position.y = -this.component.size.y / 2 - 0.1;
     const radius = Math.max(this.component.size.x, this.component.size.z, 1) * 0.7;
     this.stage.scale.set(radius / 3.8, 1, radius / 3.8);
+    this.stage.position.x = this.kind === 'flipper' ? this.component.size.x * 0.32 : 0;
   }
   private fields(): void {
     const keys = (Object.keys(ranges) as (keyof typeof ranges)[]).filter(key =>
@@ -120,10 +121,11 @@ export class Showroom {
   }
   private frame(): void {
     const openGate = this.kind === 'gate' && this.state === 'Activate';
-    const factor = ['flipper', 'rail', 'wall'].includes(this.kind) ? 0.95 : 1.65;
+    const factor = this.kind === 'flipper' ? 1.35 : ['rail', 'wall'].includes(this.kind) ? 0.95 : 1.65;
     const distance = Math.max(this.component.size.x, this.component.size.y, this.component.size.z, 1) * factor * (openGate ? 1.2 : 1);
     const targetY = openGate ? this.component.size.x * 0.3 : 0;
-    this.controls.target.set(0, targetY, 0); this.camera.position.set(distance * 0.8, distance * 0.55 + targetY, distance); this.controls.update();
+    const targetX = this.kind === 'flipper' ? this.component.size.x * 0.32 : 0;
+    this.controls.target.set(targetX, targetY, 0); this.camera.position.set(distance * 0.8 + targetX, distance * 0.55 + targetY, distance); this.controls.update();
   }
   private resize(): void { const bounds = this.element('studio-viewport').getBoundingClientRect(); this.renderer.setSize(bounds.width, bounds.height); this.camera.aspect = bounds.width / Math.max(bounds.height, 1); this.camera.updateProjectionMatrix(); }
   private storeCurrent(): void { this.presets.components[this.kind] = { ...this.params }; }

@@ -5,7 +5,7 @@ export * from './presets';
 
 export type VisualState = 'Idle' | 'Hit' | 'Activate';
 export interface Size { x: number; y: number; z: number }
-export type CollisionShape = { type: 'box'; half: Size } | { type: 'ball'; radius: number } | { type: 'cylinder'; radius: number; halfHeight: number };
+export type CollisionShape = { type: 'box'; half: Size } | { type: 'ball'; radius: number } | { type: 'cylinder'; radius: number; halfHeight: number } | { type: 'convex'; vertices: Float32Array };
 export interface ComponentOptions { params?: VisualParams; size?: Size; color?: number; side?: 'left' | 'right'; externalPose?: boolean }
 export const baseSizes: Record<ComponentKind, Size> = {
   flipper: { x: 2.5, y: 0.48, z: 0.6 }, bumper: { x: 2, y: 1.2, z: 2 },
@@ -41,6 +41,7 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
   const neon = new THREE.MeshStandardMaterial({ color: options.color ?? p.neon, emissive: options.color ?? p.neon, emissiveIntensity: p.emissiveIntensity, metalness: 0, roughness: 0.5, toneMapped: false });
   const animated = new THREE.Group(); root.add(animated);
   let ballMaterial: THREE.MeshPhysicalMaterial | undefined;
+  let collider = collisionShape(kind, size);
   function mesh(g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0, parent: THREE.Object3D = root): THREE.Mesh {
     const object = new THREE.Mesh(g, m); object.position.set(x, y, z); object.castShadow = true; object.receiveShadow = true; parent.add(object); return object;
   }
@@ -68,11 +69,20 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
     shape.lineTo(left + d / 2, d / 2); shape.quadraticCurveTo(left, d / 2, left, 0); shape.quadraticCurveTo(left, -d / 2, left + d / 2, -d / 2);
     const g = new THREE.ExtrudeGeometry(shape, { depth: h * 0.65, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: Math.min(p.bevel, h * 0.12), bevelThickness: h * 0.1, curveSegments: 20 });
     g.rotateX(-Math.PI / 2); g.translate(0, -h * 0.33, 0);
-    mesh(g, metal); const band = mesh(g.clone(), neon); band.scale.set(1.005, 0.12, 1.005);
-    cylinder(d * 0.37, d * 0.43, h * 0.9, trim).position.x = left + d / 2;
+    const paddle = mesh(g, metal); paddle.name = 'flipper-body'; const band = mesh(g.clone(), neon); band.scale.set(1.005, 0.12, 1.005);
+    const hub = cylinder(d * 0.37, d * 0.43, h * 0.9, trim); hub.position.x = left + d / 2; hub.name = 'flipper-hub';
     const cap = cylinder(d * 0.2, d * 0.2, h * 0.08, rubber, h * 0.48); cap.position.x = left + d / 2;
     box(w * 0.42, h * 0.05, d * 0.2, trim, w * 0.06, h * 0.44);
-    if (options.side === 'right') { const mirrored = new THREE.Group(); for (const child of [...root.children]) mirrored.add(child); mirrored.rotation.y = Math.PI; root.add(mirrored); }
+    const assembly = new THREE.Group();
+    for (const child of [...root.children]) assembly.add(child);
+    assembly.position.x = w / 2 - d / 2;
+    root.add(assembly);
+    if (options.side === 'right') { const mirrored = new THREE.Group(); mirrored.add(assembly); mirrored.rotation.y = Math.PI; root.add(mirrored); }
+    root.updateMatrixWorld(true);
+    const positions = g.getAttribute('position'); const vertices = new Float32Array(positions.count * 3);
+    const point = new THREE.Vector3();
+    for (let i = 0; i < positions.count; i++) { point.fromBufferAttribute(positions, i).applyMatrix4(paddle.matrixWorld); point.toArray(vertices, i * 3); }
+    collider = { type: 'convex', vertices };
   } else if (kind === 'ball') {
     ballMaterial = new THREE.MeshPhysicalMaterial({ color: p.color, metalness: p.metalness, roughness: p.roughness, clearcoat: 1, emissive: p.neon, emissiveIntensity: p.emissiveIntensity * 0.06 });
     mesh(new THREE.SphereGeometry(w / 2, 48, 32), ballMaterial);
@@ -102,7 +112,7 @@ export function createComponent(kind: ComponentKind, options: ComponentOptions =
     for (const x of [-w * 0.46, w * 0.46]) box(w * 0.08, h * 0.9, d * 1.1, metal, x, -h * 0.08);
   }
   let state: VisualState = 'Idle'; let elapsed = 0; let amount = 0;
-  return { root, size, collider: collisionShape(kind, size),
+  return { root, size, collider,
     setState(value) { if (!states[kind].includes(value) || (state === value && value !== 'Hit')) return; state = value; elapsed = 0; },
     setAmount(value) { amount = THREE.MathUtils.clamp(value, 0, 1); },
     update(delta) {
